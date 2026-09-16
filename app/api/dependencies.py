@@ -13,6 +13,8 @@ from app.database.connection import DatabaseManager
 from app.agent.service import AgentService, get_agent_service
 from app.rag.ingestion import DocumentIngestionPipeline
 
+from app.security.auth import APIKeyAuthenticator
+
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
@@ -22,18 +24,14 @@ async def verify_api_key(
 ) -> str:
     """
     Validates API key from either the 'X-API-Key' header or 'Authorization: Bearer <key>'.
-    Enforces security boundaries on all protected API routes.
+    Enforces security boundaries on all protected API routes using constant-time comparison.
     """
     settings = get_settings()
     expected_key = settings.API_KEY.strip()
 
-    provided_key: Optional[str] = None
-    if x_api_key and x_api_key.strip():
-        provided_key = x_api_key.strip()
-    elif authorization and authorization.startswith("Bearer "):
-        provided_key = authorization[7:].strip()
+    provided_key = x_api_key or APIKeyAuthenticator.extract_bearer_token(authorization)
 
-    if not provided_key or provided_key != expected_key:
+    if not APIKeyAuthenticator.verify(provided_key, expected_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={

@@ -25,6 +25,11 @@ from app.api.dependencies import (
     get_agent_service_dep,
     get_ingestion_pipeline,
 )
+from app.security import (
+    validate_file_extension,
+    validate_file_size,
+    SecurityValidationError,
+)
 from app.api.schemas import (
     HealthResponse,
     ComponentHealth,
@@ -257,6 +262,17 @@ async def ingest_documents_endpoint(
                         detail={
                             "code": "FILE_NOT_FOUND",
                             "message": f"File '{p}' does not exist on disk.",
+                        },
+                    )
+                try:
+                    validate_file_extension(p)
+                    validate_file_size(p)
+                except SecurityValidationError as sec_err:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "code": sec_err.code,
+                            "message": sec_err.message,
                         },
                     )
             report = pipeline.ingest_files(paths)

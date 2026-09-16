@@ -23,6 +23,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import get_settings
 from app.api.routes import router
 from app.agent.service import get_agent_service
+from app.security import (
+    DEFAULT_MAX_REQUEST_SIZE_BYTES,
+    SecurityValidationError,
+    RedactingLogFilter,
+)
 
 logger = logging.getLogger("enterprise_agent.api")
 
@@ -33,13 +38,33 @@ logger = logging.getLogger("enterprise_agent.api")
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """
-    Attaches a unique X-Request-ID to each incoming request state and echoes
-    it back in the outgoing HTTP response headers for end-to-end auditability.
+    Attaches a unique X-Request-ID to each incoming request state, enforces request
+    payload size limits, and echoes tracing headers in the HTTP response.
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
         req_id = request.headers.get("X-Request-ID") or f"req-{uuid.uuid4().hex[:12]}"
         request.state.request_id = req_id
+
+        # Enforce request payload size limits
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > DEFAULT_MAX_REQUEST_SIZE_BYTES:
+                    return JSONResponse(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        content={
+                            "error": {
+                                "code": "REQUEST_SIZE_EXCEEDED",
+                                "message": f"Request payload exceeds maximum allowed limit of {DEFAULT_MAX_REQUEST_SIZE_BYTES} bytes.",
+                                "details": None,
+                            },
+                            "request_id": req_id,
+                        },
+                        headers={"X-Request-ID": req_id},
+                    )
+            except ValueError:
+                pass
 
         start_time = time.time()
         response = await call_next(request)
@@ -111,9 +136,31 @@ def create_app() -> FastAPI:
     # Request ID and tracing middleware
     app.add_middleware(RequestIDMiddleware)
 
+    # Attach portfolio log sanitization filter to prevent secret leaks
+    redacting_filter = RedactingLogFilter()
+    logging.getLogger().addFilter(redacting_filter)
+    logger.addFilter(redacting_filter)
+
     # --------------------------------------------------------------------------
     # Global Structured Exception Handlers
     # --------------------------------------------------------------------------
+
+    @app.exception_handler(SecurityValidationError)
+    async def security_validation_handler(request: Request, exc: SecurityValidationError):
+        req_id = getattr(request.state, "request_id", None)
+        logger.warning("[%s] Security validation failure (%s): %s", req_id, exc.code, exc.message)
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error": {
+                    "code": exc.code,
+                    "message": exc.message,
+                    "details": None,
+                },
+                "request_id": req_id,
+            },
+            headers={"X-Request-ID": req_id} if req_id else None,
+        )
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
