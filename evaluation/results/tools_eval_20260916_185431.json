@@ -1,0 +1,99 @@
+{
+  "evaluation_type": "mcp_tools_evaluation",
+  "timestamp_utc": "2026-09-16T18:54:31.561009+00:00",
+  "summary": {
+    "total_tests": 8,
+    "passed_tests": 8,
+    "failed_tests": 0,
+    "success_rate_percent": 100.0,
+    "average_latency_ms": 538.58
+  },
+  "test_results": [
+    {
+      "test_name": "catalog_schema_verification",
+      "description": "Verifies all 4 canonical enterprise MCP tools are registered with schemas",
+      "passed": true,
+      "details": {
+        "registered_count": 4,
+        "expected_count": 4,
+        "tools": [
+          "search_policy",
+          "create_support_ticket",
+          "get_ticket_status",
+          "get_employee_info"
+        ]
+      },
+      "latency_ms": 0.5
+    },
+    {
+      "test_name": "get_employee_info_valid",
+      "description": "Retrieves employee record by valid ID EMP-1001",
+      "passed": true,
+      "details": {
+        "employee_id": "EMP-1001",
+        "success": true
+      },
+      "latency_ms": 2.45
+    },
+    {
+      "test_name": "get_employee_info_invalid",
+      "description": "Gracefully handles nonexistent employee ID",
+      "passed": true,
+      "details": {
+        "success": false,
+        "error": "No active employee found for 'EMP-NONEXISTENT-999'."
+      },
+      "latency_ms": 0.67
+    },
+    {
+      "test_name": "create_support_ticket_valid",
+      "description": "Creates support ticket in SQLite database and generates ID",
+      "passed": true,
+      "details": {
+        "ticket_id": "TCK-2026-7EB0FC",
+        "success": true
+      },
+      "latency_ms": 57.57
+    },
+    {
+      "test_name": "get_ticket_status_valid",
+      "description": "Retrieves ticket record by ID TCK-2026-7EB0FC",
+      "passed": true,
+      "details": {
+        "ticket_id": "TCK-2026-7EB0FC",
+        "success": true
+      },
+      "latency_ms": 3.23
+    },
+    {
+      "test_name": "get_ticket_status_nonexistent",
+      "description": "Gracefully handles nonexistent ticket ID",
+      "passed": true,
+      "details": {
+        "success": false,
+        "error": "Support ticket 'TCK-9999-NOTFOUND' not found."
+      },
+      "latency_ms": 1.22
+    },
+    {
+      "test_name": "create_ticket_invalid_category",
+      "description": "Rejects ticket creation with invalid category",
+      "passed": true,
+      "details": {
+        "success": false,
+        "error": "Invalid category 'UNAUTHORIZED_CATEGORY'. Allowed categories: FACILITIES, FINANCE, GENERAL, HARDWARE, HR, IT, SECURITY"
+      },
+      "latency_ms": 0.01
+    },
+    {
+      "test_name": "search_policy_execution",
+      "description": "Executes semantic policy search tool returning excerpts",
+      "passed": true,
+      "details": {
+        "results_count": 2,
+        "success": true
+      },
+      "latency_ms": 4242.97
+    }
+  ]
+}

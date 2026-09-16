@@ -1,0 +1,91 @@
+{
+  "evaluation_type": "mcp_tools_evaluation",
+  "timestamp_utc": "2026-09-16T18:46:33.763028+00:00",
+  "summary": {
+    "total_tests": 8,
+    "passed_tests": 2,
+    "failed_tests": 6,
+    "success_rate_percent": 25.0,
+    "average_latency_ms": 534.02
+  },
+  "test_results": [
+    {
+      "test_name": "catalog_schema_verification",
+      "description": "Verifies all 4 canonical enterprise MCP tools are registered with schemas",
+      "passed": false,
+      "details": {
+        "registered_count": 0,
+        "expected_count": 4,
+        "tools": []
+      },
+      "latency_ms": 0.5
+    },
+    {
+      "test_name": "get_employee_info_valid",
+      "description": "Retrieves employee record by valid ID EMP-001",
+      "passed": false,
+      "details": {
+        "employee_id": "EMP-001",
+        "status": null
+      },
+      "latency_ms": 2.05
+    },
+    {
+      "test_name": "get_employee_info_invalid",
+      "description": "Gracefully handles nonexistent employee ID",
+      "passed": false,
+      "details": {
+        "status": null
+      },
+      "latency_ms": 0.97
+    },
+    {
+      "test_name": "create_support_ticket_valid",
+      "description": "Creates support ticket in SQLite database and generates ID",
+      "passed": false,
+      "details": {
+        "ticket_id": null,
+        "status": null
+      },
+      "latency_ms": 0.89
+    },
+    {
+      "test_name": "get_ticket_status_valid",
+      "description": "Retrieves ticket record by ID TCK-2024-001",
+      "passed": false,
+      "details": {
+        "ticket_id": "TCK-2024-001",
+        "status": null
+      },
+      "latency_ms": 0.73
+    },
+    {
+      "test_name": "get_ticket_status_nonexistent",
+      "description": "Gracefully handles nonexistent ticket ID",
+      "passed": true,
+      "details": {
+        "status": null
+      },
+      "latency_ms": 0.68
+    },
+    {
+      "test_name": "create_ticket_invalid_category",
+      "description": "Rejects ticket creation with invalid category",
+      "passed": true,
+      "details": {
+        "status": null
+      },
+      "latency_ms": 0.01
+    },
+    {
+      "test_name": "search_policy_execution",
+      "description": "Executes semantic policy search tool returning excerpts",
+      "passed": false,
+      "details": {
+        "results_count": 2,
+        "status": null
+      },
+      "latency_ms": 4266.32
+    }
+  ]
+}

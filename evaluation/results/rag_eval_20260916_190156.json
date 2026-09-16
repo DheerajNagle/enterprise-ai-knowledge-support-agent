@@ -1,0 +1,379 @@
+{
+  "evaluation_type": "rag_pipeline_evaluation",
+  "timestamp_utc": "2026-09-16T19:01:56.506903+00:00",
+  "summary": {
+    "total_questions_evaluated": 20,
+    "retrieval_questions_evaluated": 10,
+    "retrieval_hits": 9,
+    "retrieval_hit_rate_percent": 90.0,
+    "citation_eligible_questions": 10,
+    "citation_hits": 10,
+    "citation_presence_rate_percent": 100.0,
+    "refusal_eligible_questions": 10,
+    "refusal_hits": 4,
+    "grounded_refusal_accuracy_percent": 40.0,
+    "average_retrieval_latency_ms": 219.38
+  },
+  "records": [
+    {
+      "id": "eval-rag-001",
+      "category": "rag_factual",
+      "question": "What are the required core working hours for remote and hybrid employees?",
+      "expected_sources": [
+        "remote_work_policy.md"
+      ],
+      "retrieved_sources": [
+        "remote_work_policy.md",
+        "remote_work_policy.md",
+        "remote_work_policy.md",
+        "remote_work_policy.md"
+      ],
+      "retrieval_hit": true,
+      "citation_present": true,
+      "refusal_accurate": null,
+      "confidence_score": 0.5464,
+      "latency_ms": 4274.89,
+      "response_snippet": "Based on the official enterprise policy (remote_work_policy.md, Section: 4. Operational Hours & Collaboration Standards):\n- **Core Hours:** ..."
+    },
+    {
+      "id": "eval-rag-002",
+      "category": "rag_factual",
+      "question": "How many days of paid vacation do full-time employees accrue per year and what is the carryover limit?",
+      "expected_sources": [
+        "leave_policy.md"
+      ],
+      "retrieved_sources": [
+        "leave_policy.md",
+        "leave_policy.md",
+        "remote_work_policy.md",
+        "leave_policy.md"
+      ],
+      "retrieval_hit": true,
+      "citation_present": true,
+      "refusal_accurate": null,
+      "confidence_score": 0.8251,
+      "latency_ms": 7.06,
+      "response_snippet": "Based on the official enterprise policy (leave_policy.md, Section: 2.1 Paid Time Off (PTO) / Annual Vacation):\n- **Annual Accrual:** Full-ti..."
+    },
+    {
+      "id": "eval-rag-003",
+      "category": "rag_factual",
+      "question": "What is the hardware refresh lifecycle for corporate laptops and can employees purchase their depreciated machine?",
+      "expected_sources": [
+        "laptop_policy.md"
+      ],
+      "retrieved_sources": [
+        "laptop_policy.md",
+        "laptop_policy.md",
+        "laptop_policy.md",
+        "laptop_policy.md"
+      ],
+      "retrieval_hit": true,
+      "citation_present": true,
+      "refusal_accurate": null,
+      "confidence_score": 0.7891,
+      "latency_ms": 6.7,
+      "response_snippet": "Based on the official enterprise policy (laptop_policy.md, Section: 3. Hardware Refresh Lifecycle):\n- **Standard Lifecycle:** All primary la..."
+    },
+    {
+      "id": "eval-rag-004",
+      "category": "rag_factual",
+      "question": "What is the daily meal allowance limit for domestic business travel?",
+      "expected_sources": [
+        "expense_policy.md"
+      ],
+      "retrieved_sources": [
+        "expense_policy.md",
+        "remote_work_policy.md",
+        "expense_policy.md",
+        "expense_policy.md"
+      ],
+      "retrieval_hit": true,
+      "citation_present": true,
+      "refusal_accurate": null,
+      "confidence_score": 0.5627,
+      "latency_ms": 7.2,
+      "response_snippet": "Based on the official enterprise policy (expense_policy.md, Section: 2.1 Daily Meal Spending Limits):\n- **Domestic Business Travel:** Up to ..."
+    },
+    {
+      "id": "eval-rag-multi-001",
+      "category": "rag_multi_doc",
+      "question": "What is the home office ergonomic equipment allowance and how do I submit an expense report for reimbursement?",
+      "expected_sources": [
+        "remote_work_policy.md",
+        "expense_policy.md"
+      ],
+      "retrieved_sources": [
+        "remote_work_policy.md",
+        "expense_policy.md",
+        "expense_policy.md",
+        "expense_policy.md"
+      ],
+      "retrieval_hit": true,
+      "citation_present": true,
+      "refusal_accurate": null,
+      "confidence_score": 0.6508,
+      "latency_ms": 5.99,
+      "response_snippet": "Based on the official enterprise policy (remote_work_policy.md, Section: 3.1 One-Time Home Office Ergonomic Stipend):\n- Eligible hybrid and ..."
+    },
+    {
+      "id": "eval-rag-multi-002",
+      "category": "rag_multi_doc",
+      "question": "Can I work remotely while traveling internationally and what cybersecurity precautions are required?",
+      "expected_sources": [
+        "remote_work_policy.md",
+        "security_policy.md"
+      ],
+      "retrieved_sources": [
+        "remote_work_policy.md",
+        "remote_work_policy.md",
+        "password_policy.md",
+        "security_policy.md"
+      ],
+      "retrieval_hit": true,
+      "citation_present": true,
+      "refusal_accurate": null,
+      "confidence_score": 0.5306,
+      "latency_ms": 6.39,
+      "response_snippet": "Based on the official enterprise policy (remote_work_policy.md, Section: 5. Work From Anywhere (Temporary Remote Travel)):\n- **Domestic Trav..."
+    },
+    {
+      "id": "eval-rag-multi-003",
+      "category": "rag_multi_doc",
+      "question": "What laptop is provisioned for engineering staff and what password rules apply to company machines?",
+      "expected_sources": [
+        "laptop_policy.md",
+        "password_policy.md"
+      ],
+      "retrieved_sources": [
+        "password_policy.md",
+        "password_policy.md",
+        "security_policy.md",
+        "remote_work_policy.md"
+      ],
+      "retrieval_hit": true,
+      "citation_present": true,
+      "refusal_accurate": null,
+      "confidence_score": 0.5466,
+      "latency_ms": 6.82,
+      "response_snippet": "Based on the official enterprise policy (password_policy.md, Section: 5. Enterprise Password Manager Adoption):\n- **Sanctioned Solution:** A..."
+    },
+    {
+      "id": "eval-rag-multi-004",
+      "category": "rag_multi_doc",
+      "question": "How long is primary caregiver parental leave and when must it be taken relative to employee start and child birth?",
+      "expected_sources": [
+        "leave_policy.md",
+        "employee_onboarding.md"
+      ],
+      "retrieved_sources": [
+        "leave_policy.md",
+        "leave_policy.md",
+        "leave_policy.md",
+        "leave_policy.md"
+      ],
+      "retrieval_hit": true,
+      "citation_present": true,
+      "refusal_accurate": null,
+      "confidence_score": 0.7817,
+      "latency_ms": 6.89,
+      "response_snippet": "Based on the official enterprise policy (leave_policy.md, Section: 2.3 Parental & Family Care Leave):\n- **Primary Caregiver Leave:** Eligibl..."
+    },
+    {
+      "id": "eval-irrel-001",
+      "category": "irrelevant",
+      "question": "What is the recipe for a classic French chocolate souffle?",
+      "expected_sources": [],
+      "retrieved_sources": [],
+      "retrieval_hit": null,
+      "citation_present": null,
+      "refusal_accurate": true,
+      "confidence_score": 0.0,
+      "latency_ms": 4.89,
+      "response_snippet": "I searched our enterprise documentation, but I could not find verified information regarding your inquiry: **'{query}'**.\n\nTo ensure accurac..."
+    },
+    {
+      "id": "eval-irrel-002",
+      "category": "irrelevant",
+      "question": "Who won the FIFA Men's World Cup in 2022 and what was the final score?",
+      "expected_sources": [],
+      "retrieved_sources": [
+        "laptop_policy.md"
+      ],
+      "retrieval_hit": null,
+      "citation_present": null,
+      "refusal_accurate": false,
+      "confidence_score": 0.2253,
+      "latency_ms": 4.68,
+      "response_snippet": "Based on the official enterprise policy (laptop_policy.md, Section: 7. Offboarding & Asset Return):\n- Upon resignation or separation, all co..."
+    },
+    {
+      "id": "eval-irrel-003",
+      "category": "irrelevant",
+      "question": "Write a sonnet about autumnal leaves falling in New England.",
+      "expected_sources": [],
+      "retrieved_sources": [
+        "security_policy.md",
+        "leave_policy.md",
+        "leave_policy.md"
+      ],
+      "retrieval_hit": null,
+      "citation_present": null,
+      "refusal_accurate": false,
+      "confidence_score": 0.251,
+      "latency_ms": 4.69,
+      "response_snippet": "Based on the official enterprise policy (security_policy.md, Section: 3. Removable Media & Endpoint Data Loss Prevention (DLP)):\n- **USB Mas..."
+    },
+    {
+      "id": "eval-irrel-004",
+      "category": "irrelevant",
+      "question": "What is the average distance from the Earth to the Moon in kilometers?",
+      "expected_sources": [],
+      "retrieved_sources": [],
+      "retrieval_hit": null,
+      "citation_present": null,
+      "refusal_accurate": true,
+      "confidence_score": 0.0,
+      "latency_ms": 6.77,
+      "response_snippet": "I searched our enterprise documentation, but I could not find verified information regarding your inquiry: **'{query}'**.\n\nTo ensure accurac..."
+    },
+    {
+      "id": "eval-halluc-001",
+      "category": "hallucination_test",
+      "question": "What is the monthly corporate stipend for maintaining an office pet dragon?",
+      "expected_sources": [],
+      "retrieved_sources": [
+        "remote_work_policy.md",
+        "expense_policy.md",
+        "remote_work_policy.md",
+        "security_policy.md"
+      ],
+      "retrieval_hit": null,
+      "citation_present": null,
+      "refusal_accurate": false,
+      "confidence_score": 0.5197,
+      "latency_ms": 6.62,
+      "response_snippet": "Based on the official enterprise policy (remote_work_policy.md, Section: 3.2 Monthly Internet & Connectivity Allowance):\n- Employees receive..."
+    },
+    {
+      "id": "eval-halluc-002",
+      "category": "hallucination_test",
+      "question": "How much Bitcoin does the CEO give each employee as an annual birthday gift?",
+      "expected_sources": [],
+      "retrieved_sources": [
+        "leave_policy.md",
+        "leave_policy.md",
+        "expense_policy.md",
+        "laptop_policy.md"
+      ],
+      "retrieval_hit": null,
+      "citation_present": null,
+      "refusal_accurate": false,
+      "confidence_score": 0.3535,
+      "latency_ms": 6.42,
+      "response_snippet": "Based on the official enterprise policy (leave_policy.md, Section: 2.1 Paid Time Off (PTO) / Annual Vacation):\n- **Annual Accrual:** Full-ti..."
+    },
+    {
+      "id": "eval-halluc-003",
+      "category": "hallucination_test",
+      "question": "What is the company reimbursement limit for purchasing a personal teleportation pod under our commute program?",
+      "expected_sources": [],
+      "retrieved_sources": [
+        "expense_policy.md",
+        "password_policy.md",
+        "remote_work_policy.md",
+        "laptop_policy.md"
+      ],
+      "retrieval_hit": null,
+      "citation_present": null,
+      "refusal_accurate": false,
+      "confidence_score": 0.461,
+      "latency_ms": 6.69,
+      "response_snippet": "Based on the official enterprise policy (expense_policy.md, Section: 5. Ground Transportation & Mileage):\n- **Rideshare Services:** UberX, L..."
+    },
+    {
+      "id": "eval-halluc-004",
+      "category": "hallucination_test",
+      "question": "Are employees allowed to expense weekend scuba diving lessons under the health benefit?",
+      "expected_sources": [],
+      "retrieved_sources": [
+        "expense_policy.md",
+        "security_policy.md",
+        "leave_policy.md",
+        "remote_work_policy.md"
+      ],
+      "retrieval_hit": null,
+      "citation_present": null,
+      "refusal_accurate": true,
+      "confidence_score": 0.4341,
+      "latency_ms": 6.84,
+      "response_snippet": "Based on the official enterprise policy (expense_policy.md, Section: 6. Expense Submission & Approval Thresholds):\n1. **Submission Portal:**..."
+    },
+    {
+      "id": "eval-ambig-001",
+      "category": "ambiguous",
+      "question": "Can I take some days off next month?",
+      "expected_sources": [
+        "leave_policy.md"
+      ],
+      "retrieved_sources": [
+        "employee_onboarding.md",
+        "leave_policy.md",
+        "remote_work_policy.md"
+      ],
+      "retrieval_hit": true,
+      "citation_present": true,
+      "refusal_accurate": null,
+      "confidence_score": 0.3931,
+      "latency_ms": 4.55,
+      "response_snippet": "Based on the official enterprise policy (employee_onboarding.md, Section: 3.2 Benefits Enrollment (30-Day Window)):\n- You have **thirty (30)..."
+    },
+    {
+      "id": "eval-ambig-002",
+      "category": "ambiguous",
+      "question": "Is it allowed?",
+      "expected_sources": [],
+      "retrieved_sources": [],
+      "retrieval_hit": null,
+      "citation_present": null,
+      "refusal_accurate": true,
+      "confidence_score": 0.0,
+      "latency_ms": 3.94,
+      "response_snippet": "I searched our enterprise documentation, but I could not find verified information regarding your inquiry: **'{query}'**.\n\nTo ensure accurac..."
+    },
+    {
+      "id": "eval-ambig-003",
+      "category": "ambiguous",
+      "question": "What is the maximum limit?",
+      "expected_sources": [],
+      "retrieved_sources": [
+        "leave_policy.md",
+        "vpn_policy.md"
+      ],
+      "retrieval_hit": null,
+      "citation_present": null,
+      "refusal_accurate": false,
+      "confidence_score": 0.349,
+      "latency_ms": 4.62,
+      "response_snippet": "Based on the official enterprise policy (leave_policy.md, Section: 2.1 Paid Time Off (PTO) / Annual Vacation):\n- **Annual Accrual:** Full-ti..."
+    },
+    {
+      "id": "eval-ambig-004",
+      "category": "ambiguous",
+      "question": "Help me with my computer, it's not working.",
+      "expected_sources": [
+        "laptop_policy.md"
+      ],
+      "retrieved_sources": [
+        "remote_work_policy.md",
+        "remote_work_policy.md"
+      ],
+      "retrieval_hit": false,
+      "citation_present": true,
+      "refusal_accurate": null,
+      "confidence_score": 0.3228,
+      "latency_ms": 4.87,
+      "response_snippet": "Based on the official enterprise policy (remote_work_policy.md, Section: 4. Operational Hours & Collaboration Standards):\n- **Core Hours:** ..."
+    }
+  ]
+}
