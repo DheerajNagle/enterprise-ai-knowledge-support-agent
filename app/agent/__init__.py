@@ -28,12 +28,16 @@ from app.agent.schemas import (
     SourceMetadataItem,
     PrioritizedChunk,
     AssembledContext,
+    RetrievedKnowledgeItem,
+    ToolExecutionResult,
+    LLMExplanation,
 )
 from app.agent.context import (
     ContextEngine,
     estimate_tokens,
     extract_keywords,
 )
+from app.agent.llm_service import LLMService
 from app.agent.rag_agent import RAGAgent, RAGAgentResult
 from app.agent.tool_agent import MCPToolAgent, ToolAgentResult
 from app.agent.root_agent import RootAgent, WorkflowType, AgentResponse
@@ -61,10 +65,15 @@ __all__ = [
     "SourceMetadataItem",
     "PrioritizedChunk",
     "AssembledContext",
+    "RetrievedKnowledgeItem",
+    "ToolExecutionResult",
+    "LLMExplanation",
     # Context Engine
     "ContextEngine",
     "estimate_tokens",
     "extract_keywords",
+    # LLM Service
+    "LLMService",
     # Google ADK Agents
     "RootAgent",
     "RAGAgent",

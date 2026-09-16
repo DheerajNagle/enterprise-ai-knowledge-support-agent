@@ -18,7 +18,14 @@ from app.agent.prompts import (
     SYSTEM_INSTRUCTION,
 )
 from app.agent.context import ContextEngine
-from app.agent.schemas import AssembledContext, ConversationTurn, SourceMetadataItem
+from app.agent.schemas import (
+    AssembledContext,
+    ConversationTurn,
+    LLMExplanation,
+    RetrievedKnowledgeItem,
+    SourceMetadataItem,
+)
+from app.agent.llm_service import LLMService
 from app.mcp import EnterpriseMCPClient
 
 logger = logging.getLogger("enterprise_agent.rag_agent")
@@ -29,7 +36,11 @@ You are the Specialized RAG Knowledge Agent in the Enterprise AI hierarchy.
 Your sole mission is to answer enterprise policy, HR, IT, security, and benefits inquiries.
 Adhere strictly to these principles:
 1. Answer ONLY using the facts present in the retrieved context chunks.
-2. For every factual assertion, append the exact source citation: [Source: <filename>, Section: <section>, Page: <page>].
+2. For every factual assertion, cite the exact source:
+   Source:
+   <filename>
+   Section:
+   <section>
 3. If the retrieved context is empty, ambiguous, or lacks the necessary facts, state:
    "{INSUFFICIENT_CONTEXT_MESSAGE}"
 4. Do NOT speculate, infer, or hallucinate beyond what is stated in the policy text.
@@ -46,25 +57,33 @@ class RAGAgentResult(BaseModel):
     assembled_context: AssembledContext = Field(..., description="Curated context pipeline artifact")
     is_grounded: bool = Field(default=True, description="True if answer is directly backed by context")
     confidence_score: float = Field(default=1.0, description="Confidence score between 0.0 and 1.0")
+    retrieved_knowledge: List[RetrievedKnowledgeItem] = Field(
+        default_factory=list, description="Structured knowledge chunks retrieved with provenance"
+    )
+    llm_explanation: Optional[LLMExplanation] = Field(
+        default=None, description="Detailed LLM explanation metadata"
+    )
 
 
 class RAGAgent:
     """
     Specialized Knowledge Retrieval Agent built on Google ADK.
-    Integrates the Context Engineering pipeline to avoid document stuffing
-    and provide verifiable citations.
+    Integrates Context Engineering and LLMService to guarantee groundedness,
+    anti-hallucination citations, and safe abstention.
     """
 
     def __init__(
         self,
         mcp_client: Optional[EnterpriseMCPClient] = None,
         context_engine: Optional[ContextEngine] = None,
+        llm_service: Optional[LLMService] = None,
         model_name: Optional[str] = None,
     ):
         settings = get_settings()
         self.mcp_client = mcp_client
         self.context_engine = context_engine or ContextEngine()
         self.model_name = model_name or settings.gemini_model
+        self.llm_service = llm_service or LLMService(model_name=self.model_name)
 
         # Underlying official Google ADK Agent definition
         self.adk_agent = Agent(
@@ -103,6 +122,14 @@ class RAGAgent:
                 assembled_context=assembled,
                 is_grounded=True,
                 confidence_score=1.0,
+                retrieved_knowledge=[],
+                llm_explanation=LLMExplanation(
+                    text=SECURITY_REFUSAL_MESSAGE,
+                    model_name=self.model_name,
+                    grounded=True,
+                    confidence_score=1.0,
+                    citations=[],
+                ),
             )
 
         # 3. Retrieve through MCP Client (search_policy) if available
@@ -138,7 +165,20 @@ class RAGAgent:
             filter_criteria=filter_criteria,
         )
 
-        # 5. Insufficient Context Check
+        # 5. Build structured RetrievedKnowledgeItem entries
+        retrieved_knowledge = [
+            RetrievedKnowledgeItem(
+                filename=doc.filename,
+                section=doc.section,
+                page_number=doc.page_number,
+                chunk_text=doc.text,
+                relevance_score=round(doc.priority_score, 4),
+                citation=f"Source:\n{doc.filename}\nSection:\n{doc.section}",
+            )
+            for doc in assembled.retrieved_documents
+        ]
+
+        # 6. Insufficient Context Check
         if not assembled.retrieved_documents:
             logger.info("[RAGAgent] No relevant chunks passed filtering for query: '%s'", query)
             return RAGAgentResult(
@@ -147,50 +187,28 @@ class RAGAgent:
                 assembled_context=assembled,
                 is_grounded=False,
                 confidence_score=0.0,
+                retrieved_knowledge=[],
+                llm_explanation=LLMExplanation(
+                    text=INSUFFICIENT_CONTEXT_MESSAGE,
+                    model_name=self.model_name,
+                    grounded=False,
+                    confidence_score=0.0,
+                    citations=[],
+                ),
             )
 
-        # 4. Synthesize Grounded Response
-        # Try live Gemini LLM if configured, otherwise synthesize grounded extraction
-        settings = get_settings()
-        answer = ""
-        if settings.is_gemini_configured:
-            try:
-                from google import genai
-                client = genai.Client(api_key=settings.gemini_api_key)
-                response = client.models.generate_content(
-                    model=self.model_name,
-                    contents=assembled.rendered_prompt,
-                )
-                answer = response.text.strip() if response.text else ""
-            except Exception as exc:
-                logger.warning("[RAGAgent] Live Gemini API invocation failed: %s. Falling back to local synthesis.", exc)
-
-        if not answer:
-            # Deterministic, grounded extraction from prioritized chunks
-            top_chunk = assembled.retrieved_documents[0]
-            answer_parts = [
-                f"Based on the {top_chunk.filename} (Section: {top_chunk.section}):\n",
-                f"{top_chunk.text}\n",
-            ]
-            # Include secondary chunk if available
-            if len(assembled.retrieved_documents) > 1:
-                sec_chunk = assembled.retrieved_documents[1]
-                answer_parts.append(
-                    f"\nAdditional Details ({sec_chunk.filename}, Section: {sec_chunk.section}):\n{sec_chunk.text}"
-                )
-
-            # Append formal citations
-            answer_parts.append("\n\nCitations:")
-            for meta in assembled.source_metadata:
-                pg = f", Page {meta.page_number}" if meta.page_number else ""
-                answer_parts.append(f"- [Source: {meta.filename}, Section: {meta.section}{pg}]")
-
-            answer = "\n".join(answer_parts)
+        # 7. Grounded Generation via LLMService
+        llm_explanation = await self.llm_service.generate_grounded_rag_answer(
+            query=query,
+            assembled_context=assembled,
+        )
 
         return RAGAgentResult(
-            answer=answer,
+            answer=llm_explanation.text,
             sources=assembled.source_metadata,
             assembled_context=assembled,
-            is_grounded=True,
-            confidence_score=round(assembled.retrieved_documents[0].priority_score, 4),
+            is_grounded=llm_explanation.grounded,
+            confidence_score=llm_explanation.confidence_score,
+            retrieved_knowledge=retrieved_knowledge,
+            llm_explanation=llm_explanation,
         )

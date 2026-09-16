@@ -11,13 +11,12 @@ Dynamically routes incoming requests to the appropriate workflow:
 1. RAG_ONLY: Knowledge and policy inquiries.
 2. TOOL_ONLY: Action-driven database operations (ticket creation, status, employee lookup).
 3. HYBRID_RAG_TOOL: Composite workflows requiring policy consultation followed by action execution.
+4. SAFETY_REFUSAL: Prompt injection and jailbreak isolation.
 
-Provides comprehensive structured audit logging:
-- Request
-- Selected Workflow
-- Retrieval Results
-- Tool Usage
-- Final Synthesized Response
+Produces a 3-tier response contract clearly distinguishing:
+1. Retrieved Knowledge (chunks, filenames, sections, scores)
+2. MCP Tool Results (tool name, parameters, execution payload)
+3. LLM-Generated Explanation (synthesized grounded reasoning)
 """
 
 import enum
@@ -30,7 +29,12 @@ from app.agent.prompts import SYSTEM_INSTRUCTION
 from app.agent.context import ContextEngine
 from app.agent.rag_agent import RAGAgent, RAGAgentResult
 from app.agent.tool_agent import MCPToolAgent, ToolAgentResult
-from app.agent.schemas import ConversationTurn
+from app.agent.schemas import (
+    ConversationTurn,
+    RetrievedKnowledgeItem,
+    ToolExecutionResult,
+)
+from app.agent.llm_service import LLMService
 from app.mcp import EnterpriseMCPClient
 
 logger = logging.getLogger("enterprise_agent.root_agent")
@@ -45,10 +49,22 @@ class WorkflowType(str, enum.Enum):
 
 
 class AgentResponse(BaseModel):
-    """Unified response contract emitted by the RootAgent orchestrator."""
+    """
+    Unified response contract emitted by the RootAgent orchestrator.
+    Exposes explicit distinction between retrieved knowledge, tool actions, and LLM explanation.
+    """
 
     workflow: WorkflowType = Field(..., description="Selected execution workflow")
     response_text: str = Field(..., description="Final conversational answer delivered to the user")
+    retrieved_knowledge: List[RetrievedKnowledgeItem] = Field(
+        default_factory=list, description="1. Retrieved official policy knowledge chunks and citations"
+    )
+    tool_results: List[ToolExecutionResult] = Field(
+        default_factory=list, description="2. Operational action outputs executed via MCP tools"
+    )
+    llm_explanation: Optional[str] = Field(
+        default=None, description="3. Synthesized natural language explanation from LLM"
+    )
     rag_result: Optional[RAGAgentResult] = Field(default=None, description="Detailed RAG retrieval metrics")
     tool_result: Optional[ToolAgentResult] = Field(default=None, description="Detailed MCP tool execution metrics")
     audit_logs: Dict[str, Any] = Field(default_factory=dict, description="Structured execution audit trace")
@@ -71,72 +87,93 @@ When receiving a user inquiry:
 
 class RootAgent:
     """
-    Top-level Google ADK Agent orchestrator.
-    Manages sub-agent delegation, dynamic routing, hybrid synthesis, and audit logging.
+    Top-level Google ADK Orchestrator.
+    Coordinates sub-agents and manages execution workflows and multi-tier response assembly.
     """
 
     def __init__(
         self,
-        rag_agent: Optional[RAGAgent] = None,
-        tool_agent: Optional[MCPToolAgent] = None,
         mcp_client: Optional[EnterpriseMCPClient] = None,
         context_engine: Optional[ContextEngine] = None,
+        llm_service: Optional[LLMService] = None,
         model_name: Optional[str] = None,
     ):
         settings = get_settings()
         self.model_name = model_name or settings.gemini_model
-        self.context_engine = context_engine or ContextEngine()
         self.mcp_client = mcp_client or EnterpriseMCPClient()
-        self.rag_agent = rag_agent or RAGAgent(
+        self.context_engine = context_engine or ContextEngine()
+        self.llm_service = llm_service or LLMService(model_name=self.model_name)
+
+        # Initialize specialized sub-agents with shared LLM and context components
+        self.rag_agent = RAGAgent(
             mcp_client=self.mcp_client,
             context_engine=self.context_engine,
+            llm_service=self.llm_service,
             model_name=self.model_name,
         )
-        self.tool_agent = tool_agent or MCPToolAgent(mcp_client=self.mcp_client, model_name=self.model_name)
+        self.tool_agent = MCPToolAgent(
+            mcp_client=self.mcp_client,
+            llm_service=self.llm_service,
+            model_name=self.model_name,
+        )
 
-        # Official Google ADK Agent definition with sub-agents hierarchy
+        # Official Google ADK Agent orchestrator with registered sub-agents
         self.adk_agent = Agent(
-            name="root_agent",
+            name="root_orchestrator",
             model=self.model_name,
-            description="Root agent that routes and orchestrates enterprise knowledge and action workflows.",
+            description="Root orchestrator delegating enterprise knowledge and operational tasks.",
             instruction=ROOT_AGENT_INSTRUCTION,
             sub_agents=[self.rag_agent.adk_agent, self.tool_agent.adk_agent],
         )
 
     # --------------------------------------------------------------------------
-    # Workflow Determination
+    # Multi-Signal Reasoning & Dynamic Routing
     # --------------------------------------------------------------------------
 
     def determine_workflow(self, query: str) -> WorkflowType:
         """
-        Dynamically selects the appropriate execution workflow based on query analysis.
-        Avoids brittle exact string matching by analyzing semantic intent and composite conditions.
+        Determines the appropriate workflow using multi-signal linguistic and semantic reasoning.
         """
         analysis = self.context_engine.analyze_query(query)
 
-        # 1. Safety / Injection guard
+        # 0. Safety / Adversarial Prompt Injection Check
         if analysis.is_potential_injection:
+            logger.warning("[RootAgent] Query flagged as potential injection: '%s'", query)
             return WorkflowType.SAFETY_REFUSAL
 
         q_lower = query.lower()
 
-        # Indicators
-        has_knowledge_indicator = any(
-            w in q_lower for w in ["what", "how", "policy", "rules", "guidelines", "eligible", "allowed", "coverage", "say about"]
-        )
-        has_action_indicator = any(
-            w in q_lower for w in ["create", "open", "file", "submit", "broken", "status", "track", "reset", "lookup"]
-        ) and any(
-            w in q_lower for w in ["ticket", "password", "employee", "account", "issue"]
-        )
+        # Action signals
+        action_keywords = [
+            "create", "open", "file", "submit", "raise", "ticket",
+            "status", "check", "lookup", "find employee", "who is",
+            "report issue", "broken", "not working", "fails to connect",
+        ]
+        has_action_indicator = any(kw in q_lower for kw in action_keywords)
 
-        # 2. Hybrid workflow: User asks about policy AND conditionally asks to create ticket or take action
-        if has_knowledge_indicator and has_action_indicator:
-            return WorkflowType.HYBRID_RAG_TOOL
+        # Policy / Knowledge signals
+        knowledge_keywords = [
+            "policy", "rules", "guidelines", "allowance", "procedure",
+            "how to", "what is", "how do i", "qualify", "eligibility",
+            "entitled", "days", "pto", "vpn", "expense", "remote work",
+            "password", "laptop", "security",
+        ]
+        has_knowledge_indicator = any(kw in q_lower for kw in knowledge_keywords)
 
-        # Also detect conditional connector: "and create a ticket", "and file a ticket", "if my issue qualifies"
-        if "policy" in q_lower and ("create a ticket" in q_lower or "file a ticket" in q_lower or "open a ticket" in q_lower):
-            return WorkflowType.HYBRID_RAG_TOOL
+        # 1. Composite / Hybrid Workflow
+        conditional_conjunctions = [
+            "and create", "and open", "and file", "if my issue",
+            "if eligible", "if i qualify", "then create", "then open",
+        ]
+        has_conditional_intent = any(conj in q_lower for conj in conditional_conjunctions)
+
+        if (has_knowledge_indicator and has_action_indicator) or has_conditional_intent or analysis.intent == "HYBRID":
+            if "and" in q_lower or "if" in q_lower or has_conditional_intent:
+                return WorkflowType.HYBRID_RAG_TOOL
+
+        # 2. Specific Ticket Status Action
+        if "TCK-" in query.upper() or ("ticket" in q_lower and "status" in q_lower):
+            return WorkflowType.TOOL_ONLY
 
         # 3. Pure Action Request
         if has_action_indicator or analysis.intent == "ACTION_REQUEST":
@@ -156,7 +193,8 @@ class RootAgent:
         top_k: int = 3,
     ) -> AgentResponse:
         """
-        Orchestrates request execution across specialized sub-agents with full audit logging.
+        Orchestrates request execution across specialized sub-agents with full audit logging
+        and a 3-tier response contract distinguishing knowledge, tools, and explanation.
         """
         workflow = self.determine_workflow(query)
 
@@ -184,6 +222,9 @@ class RootAgent:
             return AgentResponse(
                 workflow=workflow,
                 response_text=rag_res.answer,
+                retrieved_knowledge=[],
+                tool_results=[],
+                llm_explanation=rag_res.answer,
                 rag_result=rag_res,
                 audit_logs=audit_log,
             )
@@ -208,6 +249,9 @@ class RootAgent:
             return AgentResponse(
                 workflow=workflow,
                 response_text=rag_res.answer,
+                retrieved_knowledge=rag_res.retrieved_knowledge,
+                tool_results=[],
+                llm_explanation=rag_res.answer,
                 rag_result=rag_res,
                 audit_logs=audit_log,
             )
@@ -225,10 +269,15 @@ class RootAgent:
             }
             audit_log["final_response"] = tool_res.human_readable_summary
 
+            tool_executions = [tool_res.tool_execution] if tool_res.tool_execution else []
+
             logger.info("[RootAgent] Completed Tool workflow via '%s'.", tool_res.tool_name)
             return AgentResponse(
                 workflow=workflow,
                 response_text=tool_res.human_readable_summary,
+                retrieved_knowledge=[],
+                tool_results=tool_executions,
+                llm_explanation=tool_res.human_readable_summary,
                 tool_result=tool_res,
                 audit_logs=audit_log,
             )
@@ -267,10 +316,15 @@ class RootAgent:
         final_text = "\n\n".join(combined_parts)
         audit_log["final_response"] = final_text
 
+        tool_executions = [tool_res.tool_execution] if tool_res.tool_execution else []
+
         logger.info("[RootAgent] Completed Hybrid RAG+Tool workflow.")
         return AgentResponse(
             workflow=workflow,
             response_text=final_text,
+            retrieved_knowledge=rag_res.retrieved_knowledge,
+            tool_results=tool_executions,
+            llm_explanation=final_text,
             rag_result=rag_res,
             tool_result=tool_res,
             audit_logs=audit_log,

@@ -117,3 +117,34 @@ class AssembledContext(BaseModel):
     filtered_chunks_count: int = Field(default=0, description="Number of candidate chunks dropped during filtering")
     dropped_due_to_budget_count: int = Field(default=0, description="Number of chunks dropped due to token budget limit")
     rendered_prompt: str = Field(..., description="Complete, formatted prompt string ready for LLM generation")
+
+
+class RetrievedKnowledgeItem(BaseModel):
+    """Structured representation of a retrieved document passage with provenance."""
+
+    filename: str = Field(..., description="Source policy filename")
+    section: str = Field(default="General", description="Section or policy heading")
+    page_number: Optional[int] = Field(default=None, description="Page number if applicable")
+    chunk_text: str = Field(..., description="Content text of the retrieved passage")
+    relevance_score: float = Field(..., description="Similarity or priority score")
+    citation: str = Field(..., description="Formatted citation label (Source: ... Section: ...)")
+
+
+class ToolExecutionResult(BaseModel):
+    """Structured representation of an executed tool action."""
+
+    tool_name: str = Field(..., description="Name of the invoked tool")
+    parameters: Dict[str, Any] = Field(default_factory=dict, description="Parameters passed to tool")
+    result: Any = Field(..., description="Structured payload or output returned by tool")
+    success: bool = Field(default=True, description="Whether execution succeeded")
+    execution_time_ms: float = Field(default=0.0, description="Execution duration in milliseconds")
+
+
+class LLMExplanation(BaseModel):
+    """Structured representation of an LLM-generated grounded explanation."""
+
+    text: str = Field(..., description="Synthesized natural language explanation")
+    model_name: str = Field(..., description="Model identifier used for generation")
+    grounded: bool = Field(default=True, description="Whether answer is strictly grounded in retrieved evidence")
+    confidence_score: float = Field(default=1.0, description="Confidence metric for the answer")
+    citations: List[str] = Field(default_factory=list, description="Verified citations extracted from answer")

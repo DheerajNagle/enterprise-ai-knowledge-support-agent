@@ -164,6 +164,11 @@ class Settings(BaseSettings):
         """Returns the configured Gemini generation model name."""
         return self.GEMINI_MODEL
 
+    @property
+    def gemini_api_key(self) -> str:
+        """Returns the configured Gemini API key."""
+        return self.GEMINI_API_KEY
+
 
 @lru_cache()
 def get_settings() -> Settings:
