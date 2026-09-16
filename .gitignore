@@ -61,8 +61,12 @@ ENV/
 env/
 
 # Data and Vector Store
-data/*
-!data/.gitkeep
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/*.db-wal
+data/*.db-shm
+data/*.db-journal
 qdrant_storage/
 
 # IDE & Editor files

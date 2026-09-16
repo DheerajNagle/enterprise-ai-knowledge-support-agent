@@ -58,6 +58,12 @@ class Settings(BaseSettings):
         description="Google Gemini API key for LLM generation and embeddings",
     )
 
+    # SQLite Local Database Configuration
+    SQLITE_DB_PATH: str = Field(
+        default="data/enterprise.db",
+        description="Path to local SQLite business database",
+    )
+
     # Qdrant Vector Database
     QDRANT_URL: str = Field(
         default="http://localhost:6333",
