@@ -21,8 +21,22 @@ from app.agent.prompts import (
     build_grounding_eval_prompt,
     build_refusal_response,
 )
+from app.agent.schemas import (
+    QueryAnalysis,
+    ConversationTurn,
+    ToolResultItem,
+    SourceMetadataItem,
+    PrioritizedChunk,
+    AssembledContext,
+)
+from app.agent.context import (
+    ContextEngine,
+    estimate_tokens,
+    extract_keywords,
+)
 
 __all__ = [
+    # Prompts
     "PROMPT_VERSIONS",
     "SYSTEM_INSTRUCTION",
     "RAG_ANSWER_TEMPLATE",
@@ -37,4 +51,15 @@ __all__ = [
     "build_tool_instruction",
     "build_grounding_eval_prompt",
     "build_refusal_response",
+    # Context Schemas
+    "QueryAnalysis",
+    "ConversationTurn",
+    "ToolResultItem",
+    "SourceMetadataItem",
+    "PrioritizedChunk",
+    "AssembledContext",
+    # Context Engine
+    "ContextEngine",
+    "estimate_tokens",
+    "extract_keywords",
 ]
