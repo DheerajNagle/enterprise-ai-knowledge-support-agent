@@ -99,11 +99,22 @@ class ContextEngine:
         relevance_score_cutoff: float = 0.20,
         deduplication_threshold: float = 0.80,
     ):
-        self.retriever = retriever or KnowledgeRetriever()
+        self._retriever = retriever
         self.max_context_tokens = max_context_tokens
         self.max_history_tokens = max_history_tokens
         self.relevance_score_cutoff = relevance_score_cutoff
         self.deduplication_threshold = deduplication_threshold
+
+    @property
+    def retriever(self) -> KnowledgeRetriever:
+        """Lazily initializes the KnowledgeRetriever only when direct retrieval is needed."""
+        if self._retriever is None:
+            self._retriever = KnowledgeRetriever(min_score_threshold=self.relevance_score_cutoff)
+        return self._retriever
+
+    @retriever.setter
+    def retriever(self, value: KnowledgeRetriever) -> None:
+        self._retriever = value
 
     # --------------------------------------------------------------------------
     # 1. Query Analysis Stage

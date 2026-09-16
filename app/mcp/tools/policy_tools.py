@@ -36,11 +36,12 @@ def execute_search_policy(
 
     # 2. Execution via KnowledgeRetriever
     try:
-        active_retriever = retriever or KnowledgeRetriever()
+        active_retriever = retriever or KnowledgeRetriever(min_score_threshold=0.20)
         results: List[RetrievalResult] = active_retriever.retrieve(
             query=clean_query,
             top_k=clamped_k,
             filter_criteria=filter_criteria,
+            min_score=0.20,
         )
 
         structured_results = [

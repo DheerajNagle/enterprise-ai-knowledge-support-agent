@@ -57,6 +57,10 @@ class Settings(BaseSettings):
         default="",
         description="Google Gemini API key for LLM generation and embeddings",
     )
+    GEMINI_MODEL: str = Field(
+        default="gemini-2.0-flash",
+        description="Default Gemini generation model name",
+    )
 
     # SQLite Local Database Configuration
     SQLITE_DB_PATH: str = Field(
@@ -154,6 +158,11 @@ class Settings(BaseSettings):
     def is_qdrant_cloud(self) -> bool:
         """Returns True if connecting to Qdrant Cloud or requiring API key."""
         return bool(self.QDRANT_API_KEY and self.QDRANT_API_KEY.strip())
+
+    @property
+    def gemini_model(self) -> str:
+        """Returns the configured Gemini generation model name."""
+        return self.GEMINI_MODEL
 
 
 @lru_cache()

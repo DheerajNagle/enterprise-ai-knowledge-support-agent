@@ -1,0 +1,221 @@
+"""
+Google ADK MCP Tool Specialized Agent.
+
+Implements the enterprise action agent using Google Agent Development Kit (ADK).
+Specialized in executing transactional actions via the Model Context Protocol (MCP) client:
+support ticket creation, ticket lifecycle inspection, and employee directory queries.
+"""
+
+import logging
+import re
+from typing import Any, Dict, Optional
+from pydantic import BaseModel, Field
+from google.adk import Agent
+from app.config import get_settings
+from app.agent.prompts import TOOL_USAGE_INSTRUCTION
+from app.mcp import EnterpriseMCPClient
+
+logger = logging.getLogger("enterprise_agent.tool_agent")
+
+TOOL_AGENT_INSTRUCTION = f"""{TOOL_USAGE_INSTRUCTION}
+
+You are the Specialized MCP Tool Agent in the Enterprise AI hierarchy.
+Your responsibility is to execute transactional database actions via Model Context Protocol:
+1. create_support_ticket: Creates a formal IT/HR/Hardware support ticket in SQLite.
+2. get_ticket_status: Inspects ticket lifecycle, priority, and resolution notes.
+3. get_employee_info: Looks up employee corporate profiles.
+
+Always validate parameters before execution.
+Never invent employee IDs or ticket IDs.
+Report exact execution outcomes and generated identifiers.
+"""
+
+
+class ToolAgentResult(BaseModel):
+    """Structured response emitted by MCPToolAgent."""
+
+    tool_name: str = Field(..., description="Name of the MCP tool invoked")
+    parameters: Dict[str, Any] = Field(default_factory=dict, description="Parameters passed to the tool")
+    result_payload: Dict[str, Any] = Field(default_factory=dict, description="Structured tool output payload")
+    success: bool = Field(..., description="True if tool executed successfully")
+    human_readable_summary: str = Field(..., description="Conversational explanation of the result")
+
+
+class MCPToolAgent:
+    """
+    Specialized Action Agent built on Google ADK.
+    Interfaces directly with the EnterpriseMCPClient to perform live tool execution.
+    """
+
+    def __init__(
+        self,
+        mcp_client: Optional[EnterpriseMCPClient] = None,
+        model_name: Optional[str] = None,
+    ):
+        settings = get_settings()
+        self.mcp_client = mcp_client or EnterpriseMCPClient()
+        self.model_name = model_name or settings.gemini_model
+
+        # Underlying official Google ADK Agent definition
+        self.adk_agent = Agent(
+            name="mcp_tool_agent",
+            model=self.model_name,
+            description="Specialized agent for managing support tickets and querying employee directory via MCP.",
+            instruction=TOOL_AGENT_INSTRUCTION,
+        )
+
+    # --------------------------------------------------------------------------
+    # Natural Language Parameter Extraction Helpers
+    # --------------------------------------------------------------------------
+
+    @staticmethod
+    def extract_ticket_id(text: str) -> Optional[str]:
+        """Extracts ticket ID matching format TCK-YYYY-XXXX."""
+        match = re.search(r"\b(TCK-\d{4}-[A-Za-z0-9]+)\b", text, re.IGNORECASE)
+        return match.group(1).upper() if match else None
+
+    @staticmethod
+    def extract_employee_id(text: str) -> Optional[str]:
+        """Extracts employee ID matching format EMP-XXXX."""
+        match = re.search(r"\b(EMP-[A-Za-z0-9]+)\b", text, re.IGNORECASE)
+        return match.group(1).upper() if match else None
+
+    # --------------------------------------------------------------------------
+    # Execution Dispatcher
+    # --------------------------------------------------------------------------
+
+    async def run(
+        self,
+        query: str,
+        explicit_tool: Optional[str] = None,
+        explicit_params: Optional[Dict[str, Any]] = None,
+    ) -> ToolAgentResult:
+        """
+        Interprets the requested action and executes the appropriate tool via MCP client.
+        """
+        logger.info("[MCPToolAgent] Processing tool action for query: '%s'", query)
+        q_lower = query.lower()
+
+        # Connect MCP client if not connected
+        if not self.mcp_client.is_connected:
+            await self.mcp_client.connect()
+
+        # 1. Action: Get Ticket Status
+        if explicit_tool == "get_ticket_status" or "status" in q_lower or "ticket" in q_lower and ("check" in q_lower or "track" in q_lower):
+            ticket_id = (
+                explicit_params.get("ticket_id") if explicit_params
+                else self.extract_ticket_id(query)
+            )
+            if not ticket_id:
+                return ToolAgentResult(
+                    tool_name="get_ticket_status",
+                    parameters={"query": query},
+                    result_payload={"success": False, "error": "No valid Ticket ID found in request."},
+                    success=False,
+                    human_readable_summary="Please provide a valid ticket ID (e.g. TCK-2024-0101) to check status.",
+                )
+
+            res = await self.mcp_client.get_ticket_status(ticket_id=ticket_id)
+            if res.get("success"):
+                tck = res.get("ticket", {})
+                summary = (
+                    f"Support Ticket {tck.get('ticket_id')} ('{tck.get('title')}') is currently "
+                    f"**{tck.get('status')}** (Priority: {tck.get('priority')})."
+                )
+                if tck.get("resolution_notes"):
+                    summary += f" Resolution notes: {tck.get('resolution_notes')}"
+            else:
+                summary = f"Could not find ticket {ticket_id}: {res.get('error', 'Unknown error')}."
+
+            return ToolAgentResult(
+                tool_name="get_ticket_status",
+                parameters={"ticket_id": ticket_id},
+                result_payload=res,
+                success=res.get("success", False),
+                human_readable_summary=summary,
+            )
+
+        # 2. Action: Create Support Ticket
+        if explicit_tool == "create_support_ticket" or any(w in q_lower for w in ["create", "open", "file", "submit", "broken", "issue"]):
+            params = explicit_params or {}
+            emp_id = params.get("employee_id") or self.extract_employee_id(query) or "EMP-1001"
+            title = params.get("title")
+            desc = params.get("description") or query
+
+            # Infer category
+            category = params.get("category")
+            if not category:
+                if any(w in q_lower for w in ["vpn", "wifi", "network", "firewall"]):
+                    category = "IT"
+                elif any(w in q_lower for w in ["laptop", "macbook", "hardware", "monitor", "screen"]):
+                    category = "HARDWARE"
+                elif any(w in q_lower for w in ["pto", "leave", "vacation", "benefits"]):
+                    category = "HR"
+                elif any(w in q_lower for w in ["expense", "receipt", "mileage"]):
+                    category = "FINANCE"
+                else:
+                    category = "GENERAL"
+
+            # Infer priority
+            priority = params.get("priority") or ("HIGH" if any(w in q_lower for w in ["urgent", "down", "critical", "broken"]) else "MEDIUM")
+
+            if not title:
+                # Use clean summary from query
+                clean_q = re.sub(r"^(please\s+)?(create|open|file|submit)\s+(a\s+)?(support\s+)?ticket\s+(about|for|because)?\s*", "", query, flags=re.IGNORECASE).strip()
+                title = clean_q[:60].capitalize() if clean_q else "General Support Request"
+
+            res = await self.mcp_client.create_support_ticket(
+                employee_id=emp_id,
+                title=title,
+                description=desc,
+                category=category,
+                priority=priority,
+            )
+
+            if res.get("success"):
+                tck = res.get("ticket", {})
+                summary = (
+                    f"Successfully created support ticket **{tck.get('ticket_id')}** for {tck.get('employee_name')} "
+                    f"({tck.get('employee_id')}). Category: {tck.get('category')}, Priority: {tck.get('priority')}. "
+                    f"Our IT/Operations team has been notified."
+                )
+            else:
+                summary = f"Failed to create support ticket: {res.get('error', 'Unknown error')}."
+
+            return ToolAgentResult(
+                tool_name="create_support_ticket",
+                parameters={"employee_id": emp_id, "title": title, "category": category, "priority": priority},
+                result_payload=res,
+                success=res.get("success", False),
+                human_readable_summary=summary,
+            )
+
+        # 3. Action: Get Employee Info
+        if explicit_tool == "get_employee_info" or "employee" in q_lower or "directory" in q_lower:
+            emp_id = self.extract_employee_id(query)
+            res = await self.mcp_client.get_employee_info(employee_id=emp_id)
+            if res.get("success"):
+                emp = res.get("employee", {})
+                summary = (
+                    f"Employee **{emp.get('name')}** ({emp.get('employee_id')}) - "
+                    f"Department: {emp.get('department')}, Role: {emp.get('role')}, Status: {'Active' if emp.get('is_active') else 'Inactive'}."
+                )
+            else:
+                summary = f"Employee lookup failed: {res.get('error', 'Unknown error')}."
+
+            return ToolAgentResult(
+                tool_name="get_employee_info",
+                parameters={"employee_id": emp_id},
+                result_payload=res,
+                success=res.get("success", False),
+                human_readable_summary=summary,
+            )
+
+        # Fallback default
+        return ToolAgentResult(
+            tool_name="unknown",
+            parameters={"query": query},
+            result_payload={"success": False, "error": "Unable to determine requested tool action."},
+            success=False,
+            human_readable_summary="I was unable to determine what action to take. Please specify whether you want to create a ticket, check a ticket status, or look up an employee.",
+        )
