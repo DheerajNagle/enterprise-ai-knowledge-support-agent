@@ -26,31 +26,46 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Virtual environments
-venv/
-.venv/
-env/
-.env/
-ENV/
-env.bak/
-venv.bak/
+# PyInstaller
+*.manifest
+*.spec
 
-# Environment Variables & Secrets
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Environments
 .env
 .env.local
+.env.*.local
 *.env
 !.env.example
+.venv/
+venv/
+ENV/
+env/
 
-# Node.js (for frontend components)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-.next/
-out/
+# Data and Vector Store
+data/*
+!data/.gitkeep
+qdrant_storage/
 
-# IDE & OS files
+# IDE & Editor files
 .vscode/
 .idea/
 *.swp
@@ -58,10 +73,3 @@ out/
 *~
 .DS_Store
 Thumbs.db
-
-# Vector Databases & Local Stores
-data/
-chroma_db/
-faiss_index/
-*.sqlite3
-*.db

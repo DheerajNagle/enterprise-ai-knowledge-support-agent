@@ -1,121 +1,166 @@
-# 🏢 Enterprise AI Knowledge Support Agent
+# 🏢 Enterprise AI Knowledge & Support Agent
 
-An intelligent, enterprise-grade AI knowledge and support assistant powered by **Retrieval-Augmented Generation (RAG)**. This system enables organizations to connect internal wikis, manuals, policies, and ticketing databases into an interactive, high-accuracy conversational support engine.
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
+[![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-E92063.svg)](https://docs.pydantic.dev/)
+[![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
----
-
-## 🌟 Key Features
-
-- **🔍 Intelligent Knowledge Retrieval (RAG)**: Combines semantic vector search with keyword/hybrid filtering to retrieve precise documents.
-- **🛡️ Source Attribution & Citations**: Every response includes verifiable citations back to original internal documentation to minimize hallucinations.
-- **🔐 Enterprise Security & RBAC**: Designed with role-based access control to ensure employees only query documents they are authorized to view.
-- **⚡ High-Performance API**: Built on FastAPI with asynchronous request handling for enterprise scale.
-- **🔌 Multi-LLM & Vector DB Agnostic**: Easily switch between OpenAI, Anthropic Claude, Google Gemini, or local models (Ollama), paired with ChromaDB, Pinecone, or Qdrant.
+An enterprise-grade, multi-agent AI knowledge and support platform powered by **Google Agent Development Kit (ADK)**, **Gemini 2.5/1.5**, **Retrieval-Augmented Generation (RAG)**, **Qdrant Vector Database**, and the **Model Context Protocol (MCP)**.
 
 ---
 
-## 🏗️ System Architecture
+## 📑 Documentation
+
+- **System Architecture**: Detailed in [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- **Master Implementation Plan**: Detailed in [`PROJECT_PLAN.md`](PROJECT_PLAN.md)
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| **Language & Runtime** | Python 3.11+ |
+| **API & Gateway** | FastAPI, Uvicorn, Pydantic v2, Pydantic-Settings, HTTPX |
+| **Agent Orchestration** | Google Agent Development Kit (ADK), LangChain |
+| **LLM & Reasoning** | Google Gemini (Gemini 2.5 / 1.5 Series) |
+| **Vector Database & RAG** | Qdrant (`qdrant-client`, `langchain-qdrant`), Text-Embedding-004 |
+| **Tool Execution** | Model Context Protocol (MCP Python SDK, FastMCP, ClientSession) |
+| **User Interface** | Streamlit |
+| **Containerization** | Docker, Docker Compose (Multi-stage build) |
+| **Quality & Evaluation** | Pytest, Pytest-Asyncio, Ragas |
+
+---
+
+## 📁 Application Structure
 
 ```
-   ┌───────────────────────┐
-   │ Enterprise Data Sources │ (PDFs, Docs, Confluence, Jira, Notion)
-   └───────────┬───────────┘
-               │ (Chunking & Embeddings)
-               ▼
-   ┌───────────────────────┐
-   │  Vector Database      │ (ChromaDB / Pinecone / Qdrant)
-   └───────────┬───────────┘
-               │ Hybrid Retrieval
-               ▼
-   ┌──────────────────────────────────────────────┐
-   │ Enterprise AI Knowledge Support Agent (API) │
-   │ ├── Context Reranking                        │
-   │ ├── Citation Verification                    │
-   │ └── LLM Reasoning                            │
-   └───────────────────┬──────────────────────────┘
-                       │
-                       ▼
-             [Verified Answer with Citations]
-```
-
----
-
-## 📁 Project Structure
-
-```bash
 enterprise-ai-knowledge-support-agent/
-├── .env.example          # Sample environment configuration
-├── .gitignore            # Git ignore specifications
-├── README.md             # Project documentation
-├── requirements.txt      # Python dependencies
-└── src/
-    ├── __init__.py
-    ├── agent.py          # Core agent reasoning & query execution
-    ├── config.py         # App & environment configuration
-    └── main.py           # FastAPI application entrypoint
+├── .env.example              # Environment variables template
+├── .gitignore                # Git ignore rules
+├── ARCHITECTURE.md           # System architecture specification
+├── PROJECT_PLAN.md           # 10-Phase implementation plan
+├── Dockerfile                # Production multi-stage Docker build
+├── docker-compose.yml        # Multi-container orchestration (API + Qdrant)
+├── pyproject.toml            # Project metadata & dependency definitions
+├── README.md                 # Project documentation
+├── app/                      # Application source package
+│   ├── __init__.py           # Package marker
+│   ├── config.py             # Strongly typed Settings & configuration validation
+│   └── main.py               # FastAPI entrypoint with GET /health
+├── data/                     # Data directory for enterprise documents & indices
+│   └── .gitkeep
+├── docs/                     # Documentation & specifications
+│   └── .gitkeep
+└── tests/                    # Test suite
+    ├── __init__.py           # Test package marker
+    ├── test_config.py        # Configuration & validation tests
+    └── test_health.py        # Foundation health endpoint tests
 ```
 
 ---
 
-## 🚀 Quick Start
+## ⚙️ Environment Configuration
 
-### 1. Prerequisites
-- Python 3.10+
-- Git
+Copy the sample environment file and configure your credentials:
 
-### 2. Clone the Repository
-```bash
-git clone https://github.com/DheerajNagle/enterprise-ai-knowledge-support-agent.git
-cd enterprise-ai-knowledge-support-agent
-```
-
-### 3. Setup Virtual Environment
-```bash
-# Windows
-python -m venv venv
-.\venv\Scripts\activate
-
-# Linux/macOS
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 4. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 5. Configure Environment
-Copy the example configuration and update your API keys:
 ```bash
 cp .env.example .env
 ```
 
-### 6. Run the Application
+Key environment variables:
+- `GEMINI_API_KEY`: Google Gemini API key for LLM operations.
+- `QDRANT_URL`: Endpoint for Qdrant vector database (default: `http://localhost:6333`).
+- `QDRANT_API_KEY`: Optional key for Qdrant Cloud.
+- `API_KEY`: Secret authentication key for API Gateway requests.
+- `ENVIRONMENT`: `development`, `staging`, `production`, or `test`.
+
+---
+
+## 🚀 How to Run the Project
+
+### 1. Local Python Environment (Recommended for Development)
+
+#### Prerequisites
+- Python 3.11+ installed
+
+#### Create and Activate Virtual Environment
 ```bash
-uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+# Windows
+python -m venv .venv
+.\.venv\Scripts\activate
+
+# Linux / macOS
+python3 -m venv .venv
+source .venv/bin/activate
 ```
-The API documentation will be available at [http://localhost:8000/docs](http://localhost:8000/docs).
+
+#### Install Dependencies
+```bash
+pip install -e .
+# Or using pip with pyproject.toml:
+pip install fastapi uvicorn pydantic pydantic-settings python-dotenv pytest httpx
+```
+
+#### Run the FastAPI Gateway
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The service will start at [http://localhost:8000](http://localhost:8000).
+- Health Check: [http://localhost:8000/health](http://localhost:8000/health)
+- Interactive API Docs (Swagger): [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-## 📡 API Endpoints
+### 2. Docker & Docker Compose
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/` | Health check & service metadata |
-| `POST` | `/api/v1/query` | Ask a question to the Knowledge Support Agent |
-| `GET` | `/docs` | Interactive Swagger API documentation |
+To start both the API gateway and Qdrant vector database:
+
+```bash
+docker compose up -d --build
+```
+
+Check service status:
+```bash
+docker compose ps
+```
+
+Stop services:
+```bash
+docker compose down
+```
 
 ---
 
-## 🛣️ Roadmap
+## 🧪 Running Tests
 
-- [x] Initial scaffolding & API foundation
-- [ ] Connect multi-format document parser (PDF, DOCX, Markdown, HTML)
-- [ ] Implement Hybrid Search (Dense Embeddings + BM25)
-- [ ] Add conversation session management and streaming responses
-- [ ] Webhook integration for Slack / Microsoft Teams / Web Chatbot
+Execute the Pytest test suite:
+
+```bash
+# Run all tests with verbose output
+pytest -v
+
+# Run specific test modules
+pytest tests/test_config.py
+pytest tests/test_health.py
+```
+
+---
+
+## 🗺️ Implementation Roadmap
+
+- [x] **Phase 1: Project Foundation & Architecture** (Structure, Configuration, Healthcheck, Docker, Pytest)
+- [ ] **Phase 2: Configuration, Structured Logging & Pydantic v2 Core Schemas**
+- [ ] **Phase 3: Knowledge Ingestion & Vector Storage Pipeline (Qdrant & Embeddings)**
+- [ ] **Phase 4: Context Engineering, Prompt Engineering & Advanced RAG Engine**
+- [ ] **Phase 5: Model Context Protocol (MCP) Server & Client Subsystem**
+- [ ] **Phase 6: Google ADK & Multi-Agent Orchestration Engine**
+- [ ] **Phase 7: Enterprise FastAPI REST Gateway & Security Layer**
+- [ ] **Phase 8: Streamlit Production Support Console & Citations UI**
+- [ ] **Phase 9: AI Evaluation & Automated Quality Harness (Ragas / LLM-as-a-Judge)**
+- [ ] **Phase 10: Dockerization, Container Networking & Production Verification**
 
 ---
 
