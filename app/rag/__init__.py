@@ -10,6 +10,8 @@ from app.rag.chunking import DocumentChunker, DocumentChunk
 from app.rag.embeddings import EmbeddingManager
 from app.rag.vector_store import QdrantVectorStoreManager
 from app.rag.ingestion import DocumentIngestionPipeline
+from app.rag.retriever import KnowledgeRetriever, RetrievalResult
+from app.rag.reranker import BaseReranker, LexicalSemanticReranker, NoOpReranker
 
 __all__ = [
     "DocumentLoader",
@@ -19,4 +21,9 @@ __all__ = [
     "EmbeddingManager",
     "QdrantVectorStoreManager",
     "DocumentIngestionPipeline",
+    "KnowledgeRetriever",
+    "RetrievalResult",
+    "BaseReranker",
+    "LexicalSemanticReranker",
+    "NoOpReranker",
 ]
