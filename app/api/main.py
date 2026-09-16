@@ -52,7 +52,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
             try:
                 if int(content_length) > DEFAULT_MAX_REQUEST_SIZE_BYTES:
                     return JSONResponse(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                         content={
                             "error": {
                                 "code": "REQUEST_SIZE_EXCEEDED",
@@ -167,7 +167,7 @@ def create_app() -> FastAPI:
         req_id = getattr(request.state, "request_id", None)
         logger.warning("[%s] Request validation error: %s", req_id, exc.errors())
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content={
                 "error": {
                     "code": "VALIDATION_ERROR",

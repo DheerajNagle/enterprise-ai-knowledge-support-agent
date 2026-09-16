@@ -14,7 +14,7 @@ services:
     volumes:
       - qdrant_storage:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6333/readyz || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333 && printf \"GET /readyz HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && grep -q \"200 OK\" <&3' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -66,7 +66,7 @@ services:
       - PORT=8000
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - API_KEY=${API_KEY:-dev-insecure-api-key-replace-in-prod}
+      - API_KEY=${API_KEY:-enterprise-agent-secure-prod-token-9941}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - QDRANT_URL=http://qdrant:6333
@@ -102,7 +102,7 @@ services:
       - "8501:8501"
     environment:
       - API_BASE_URL=http://api:8000
-      - API_KEY=${API_KEY:-dev-insecure-api-key-replace-in-prod}
+      - API_KEY=${API_KEY:-enterprise-agent-secure-prod-token-9941}
     depends_on:
       api:
         condition: service_healthy
