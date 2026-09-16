@@ -82,6 +82,12 @@ class Settings(BaseSettings):
         description="Default Qdrant collection name",
     )
 
+    # Model Context Protocol (MCP) Remote Server
+    MCP_SERVER_URL: Optional[str] = Field(
+        default=None,
+        description="Optional remote MCP Server SSE URL (e.g. http://mcp:8001/sse)",
+    )
+
     # Model Parameters & Vector Tuning
     EMBEDDING_MODEL: str = Field(
         default="text-embedding-004",
@@ -119,6 +125,18 @@ class Settings(BaseSettings):
             raise ValueError("QDRANT_URL cannot be empty.")
         if not (v.startswith("http://") or v.startswith("https://")):
             raise ValueError("QDRANT_URL must start with http:// or https://")
+        return v
+
+    @field_validator("MCP_SERVER_URL")
+    @classmethod
+    def validate_mcp_server_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        if not (v.startswith("http://") or v.startswith("https://")):
+            raise ValueError("MCP_SERVER_URL must start with http:// or https://")
         return v
 
     @field_validator("ENVIRONMENT")

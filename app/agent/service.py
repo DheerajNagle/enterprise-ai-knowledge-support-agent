@@ -238,5 +238,11 @@ def get_agent_service() -> AgentService:
     """Singleton accessor for the AgentService instance."""
     global _agent_service_instance
     if _agent_service_instance is None:
-        _agent_service_instance = AgentService()
+        settings = get_settings()
+        mcp_client = (
+            EnterpriseMCPClient(server_url=settings.MCP_SERVER_URL)
+            if settings.MCP_SERVER_URL
+            else None
+        )
+        _agent_service_instance = AgentService(mcp_client=mcp_client)
     return _agent_service_instance

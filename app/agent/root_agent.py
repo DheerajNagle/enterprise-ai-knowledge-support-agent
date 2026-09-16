@@ -100,7 +100,7 @@ class RootAgent:
     ):
         settings = get_settings()
         self.model_name = model_name or settings.gemini_model
-        self.mcp_client = mcp_client or EnterpriseMCPClient()
+        self.mcp_client = mcp_client or EnterpriseMCPClient(server_url=settings.MCP_SERVER_URL)
         self.context_engine = context_engine or ContextEngine()
         self.llm_service = llm_service or LLMService(model_name=self.model_name)
 

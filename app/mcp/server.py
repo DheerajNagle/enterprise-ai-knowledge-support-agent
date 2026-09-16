@@ -10,6 +10,8 @@ import argparse
 import asyncio
 import logging
 import sys
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 from mcp.server.mcpserver import MCPServer
 from app.mcp.tools import register_all_tools
 
@@ -33,6 +35,19 @@ def create_mcp_server(
         ),
     )
     register_all_tools(server)
+
+    # Health check route for container orchestration and HTTP health probing
+    async def health_check(request):
+        return JSONResponse({
+            "status": "healthy",
+            "service": name,
+            "version": version,
+        })
+
+    server._custom_starlette_routes.append(
+        Route("/health", endpoint=health_check, methods=["GET"])
+    )
+
     return server
 
 

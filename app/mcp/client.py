@@ -57,6 +57,7 @@ class EnterpriseMCPClient:
         server_env: Optional[Dict[str, str]] = None,
         cwd: Optional[str] = None,
         session: Optional[ClientSession] = None,
+        server_url: Optional[str] = None,
     ):
         """
         Args:
@@ -65,11 +66,13 @@ class EnterpriseMCPClient:
             server_env: Optional environment variables dictionary for the server process.
             cwd: Working directory for server process (defaults to repo root).
             session: Optional pre-existing ClientSession (for in-memory stream testing).
+            server_url: Optional remote Server-Sent Events (SSE) URL (e.g. 'http://mcp:8001/sse').
         """
         self.server_command = server_command or sys.executable
         self.server_args = server_args or ["scripts/run_mcp_server.py"]
         self.server_env = server_env
         self.cwd = cwd or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.server_url = server_url
         
         self._external_session = session
         self._session: Optional[ClientSession] = session
@@ -89,7 +92,7 @@ class EnterpriseMCPClient:
     async def connect(self) -> None:
         """
         Establishes connection to the MCP server, negotiates capabilities,
-        and discovers available tools.
+        and discovers available tools. Supports both local stdio and remote SSE transports.
         """
         if self.is_connected:
             return
@@ -101,7 +104,36 @@ class EnterpriseMCPClient:
             self._is_connected = True
             return
 
-        # Verify target server script existence when using python executable
+        # 1. Remote SSE transport
+        if self.server_url:
+            try:
+                from mcp.client.sse import sse_client
+
+                logger.info("Connecting to remote MCP Server via SSE at '%s'...", self.server_url)
+                self._exit_stack = AsyncExitStack()
+
+                read_stream, write_stream = await self._exit_stack.enter_async_context(
+                    sse_client(self.server_url)
+                )
+                self._session = await self._exit_stack.enter_async_context(
+                    ClientSession(read_stream, write_stream)
+                )
+
+                init_res = await self._session.initialize()
+                logger.info(
+                    "Connected to remote MCP Server: %s (v%s)",
+                    init_res.server_info.name,
+                    getattr(init_res.server_info, "version", "unknown"),
+                )
+
+                await self.discover_tools()
+                self._is_connected = True
+                return
+            except Exception as exc:
+                await self.disconnect()
+                raise MCPConnectionError(f"Failed to connect to remote MCP server at '{self.server_url}': {str(exc)}") from exc
+
+        # 2. Local Stdio Subprocess transport
         if self.server_command == sys.executable and self.server_args:
             script_path = os.path.join(self.cwd, self.server_args[0])
             if not os.path.exists(script_path):

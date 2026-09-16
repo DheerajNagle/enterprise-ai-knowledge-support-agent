@@ -1,0 +1,46 @@
+# Version Control
+.git
+.gitignore
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+
+# Build & Packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Secrets & Environment Files (Never leak into images)
+.env
+.env.local
+.env.*.local
+
+# IDE & Editor Settings
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Evaluation Runs & Temporary Logs
+evaluation/results/*.json
+*.log

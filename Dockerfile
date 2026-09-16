@@ -1,8 +1,10 @@
 # ==============================================================================
-# Multi-Stage Dockerfile for Enterprise AI Knowledge & Support Agent
+# Multi-Stage Production Dockerfile for Enterprise AI Knowledge & Support Agent
 # ==============================================================================
 
-# Stage 1: Build Dependencies
+# ------------------------------------------------------------------------------
+# Stage 1: Build Dependencies (Compiler & Wheels)
+# ------------------------------------------------------------------------------
 FROM python:3.11-slim AS builder
 
 WORKDIR /build
@@ -15,46 +17,77 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml requirements.txt* ./
+COPY pyproject.toml requirements.txt README.md ./
 
-# Install pip dependencies to user wheel directory
+# Compile wheels for all project and runtime dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt || \
-    pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels .
+    pip wheel --no-cache-dir --wheel-dir /build/wheels -r requirements.txt
 
-# Stage 2: Production Runtime
-FROM python:3.11-slim AS runtime
+# ------------------------------------------------------------------------------
+# Stage 2: Base Runtime Environment
+# ------------------------------------------------------------------------------
+FROM python:3.11-slim AS runtime-base
 
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    ENVIRONMENT=production \
-    PORT=8000
+    PYTHONPATH=/app \
+    ENVIRONMENT=production
 
-# Install runtime dependencies and create non-root user
+# Install curl for container healthcheck execution & create unprivileged user
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --home-dir /home/appuser --shell /bin/bash appuser
 
-# Copy wheels from builder and install
+# Install pre-built wheels from builder stage
 COPY --from=builder /build/wheels /wheels
 RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 
-# Copy application source code
+# Copy application source code, assets, scripts, and default database
 COPY . /app
 
-# Set ownership to non-root user
+# Ensure non-root appuser owns application code and data directory
 RUN chown -R appuser:appuser /app
 USER appuser
 
-# Expose API gateway port
+# ------------------------------------------------------------------------------
+# Stage 3: Target - API Service (FastAPI Gateway)
+# ------------------------------------------------------------------------------
+FROM runtime-base AS api
+
+ENV PORT=8000
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Start FastAPI application with Uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# ------------------------------------------------------------------------------
+# Stage 4: Target - MCP Server Service (FastMCP SSE)
+# ------------------------------------------------------------------------------
+FROM runtime-base AS mcp
+
+ENV PORT=8001
+EXPOSE 8001
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+CMD ["python", "scripts/run_mcp_server.py", "--transport", "sse", "--host", "0.0.0.0", "--port", "8001"]
+
+# ------------------------------------------------------------------------------
+# Stage 5: Target - Streamlit Web Console
+# ------------------------------------------------------------------------------
+FROM runtime-base AS streamlit
+
+ENV PORT=8501 \
+    API_BASE_URL=http://api:8000
+EXPOSE 8501
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+CMD ["streamlit", "run", "frontend/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true", "--browser.gatherUsageStats=false"]
