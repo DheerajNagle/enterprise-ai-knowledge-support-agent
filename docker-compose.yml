@@ -38,6 +38,7 @@ services:
       - PYTHONUNBUFFERED=1
       - SQLITE_DB_PATH=data/enterprise.db
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - API_KEY=${API_KEY:-enterprise-agent-secure-prod-token-9941}
     volumes:
       - sqlite_data:/app/data
     healthcheck:

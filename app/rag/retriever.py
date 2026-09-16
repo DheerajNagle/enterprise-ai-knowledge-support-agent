@@ -53,11 +53,12 @@ class KnowledgeRetriever:
         settings = get_settings()
         self.vector_store = vector_store or QdrantVectorStoreManager()
         self.embedding_manager = embedding_manager or EmbeddingManager()
-        self.min_score_threshold = (
-            min_score_threshold
-            if min_score_threshold is not None
-            else settings.SIMILARITY_THRESHOLD
-        )
+        if min_score_threshold is not None:
+            self.min_score_threshold = min_score_threshold
+        elif not self.embedding_manager.is_gemini_active():
+            self.min_score_threshold = 0.20
+        else:
+            self.min_score_threshold = settings.SIMILARITY_THRESHOLD
 
         # Initialize reranker
         if reranker is not None:
