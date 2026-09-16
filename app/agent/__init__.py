@@ -41,6 +41,7 @@ from app.agent.llm_service import LLMService
 from app.agent.rag_agent import RAGAgent, RAGAgentResult
 from app.agent.tool_agent import MCPToolAgent, ToolAgentResult
 from app.agent.root_agent import RootAgent, WorkflowType, AgentResponse
+from app.agent.service import AgentService, get_agent_service
 
 __all__ = [
     # Prompts
@@ -82,4 +83,7 @@ __all__ = [
     "AgentResponse",
     "RAGAgentResult",
     "ToolAgentResult",
+    # Agent Service
+    "AgentService",
+    "get_agent_service",
 ]

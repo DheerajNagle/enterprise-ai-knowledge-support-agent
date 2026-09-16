@@ -11,6 +11,7 @@ Validates:
 """
 
 import pytest
+import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock
 from app.agent.schemas import (
     AssembledContext,
@@ -209,12 +210,21 @@ async def test_llm_api_error_handling(mock_genai_client, sample_context):
 # Three-Tier Response Architecture Tests
 # ------------------------------------------------------------------------------
 
-@pytest.fixture
-def test_root_agent(mock_genai_client):
-    """Creates a RootAgent with mock LLM and live MCP client."""
+@pytest_asyncio.fixture
+async def test_root_agent(mock_genai_client):
+    """Creates a RootAgent with mock LLM and live MCP client with clean teardown."""
     mcp = EnterpriseMCPClient()
-    llm = LLMService(client=mock_genai_client)
-    return RootAgent(mcp_client=mcp, llm_service=llm)
+    await mcp.connect()
+
+    try:
+        llm = LLMService(client=mock_genai_client)
+        agent = RootAgent(
+            mcp_client=mcp,
+            llm_service=llm,
+        )
+        yield agent
+    finally:
+        await mcp.disconnect()
 
 
 @pytest.mark.asyncio

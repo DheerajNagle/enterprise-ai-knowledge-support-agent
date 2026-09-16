@@ -135,7 +135,7 @@ class RAGAgent:
         # 3. Retrieve through MCP Client (search_policy) if available
         retrieved_candidates = None
         if self.mcp_client is not None:
-            dept = filter_criteria.get("department") if filter_criteria else analysis.detected_department
+            dept = filter_criteria.get("department") if filter_criteria else None
             try:
                 if not self.mcp_client.is_connected:
                     await self.mcp_client.connect()

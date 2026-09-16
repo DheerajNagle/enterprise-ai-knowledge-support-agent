@@ -119,7 +119,7 @@ class RootAgent:
 
         # Official Google ADK Agent orchestrator with registered sub-agents
         self.adk_agent = Agent(
-            name="root_orchestrator",
+            name="root_agent",
             model=self.model_name,
             description="Root orchestrator delegating enterprise knowledge and operational tasks.",
             instruction=ROOT_AGENT_INSTRUCTION,

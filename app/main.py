@@ -1,48 +1,16 @@
 """
-Application Entrypoint and Foundation REST API.
+Application Entrypoint and Gateway Server.
 
-Provides the initial FastAPI application instance, lifespan handler,
-and the foundation GET /health endpoint for readiness testing.
+Initializes the FastAPI application from the API factory and exposes the ASGI
+application instance for Uvicorn and production deployment.
 """
 
-from contextlib import asynccontextmanager
-from typing import Dict, Any
-from fastapi import FastAPI
 from app.config import get_settings
+from app.api.main import create_app
 
 settings = get_settings()
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan context for startup and shutdown events."""
-    # Startup: logging and resource preparation
-    yield
-    # Shutdown: clean up connections
-
-
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    description="Enterprise AI Knowledge & Support Agent REST Gateway",
-    lifespan=lifespan,
-)
-
-
-@app.get("/health", tags=["Health"])
-async def health_check() -> Dict[str, Any]:
-    """
-    Foundation health check endpoint.
-    Used for liveness probes, container readiness checks, and baseline verification.
-    """
-    return {
-        "status": "healthy",
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT,
-        "gemini_configured": settings.is_gemini_configured(),
-        "qdrant_url": settings.QDRANT_URL,
-    }
+app = create_app()
 
 
 if __name__ == "__main__":

@@ -194,8 +194,9 @@ class LLMService:
         fallback_parts.append("\nSources:")
         for meta in assembled_context.source_metadata:
             cit_str = f"Source:\n{meta.filename}\nSection:\n{meta.section}"
+            bracketed_cit = f"[Source: {meta.filename}, Section: {meta.section}]"
             citations.append(cit_str)
-            fallback_parts.append(f"\n{cit_str}\n")
+            fallback_parts.append(f"\n{bracketed_cit}\n\n{cit_str}\n")
 
         return LLMExplanation(
             text="".join(fallback_parts).strip(),
