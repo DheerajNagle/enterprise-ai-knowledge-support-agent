@@ -39,8 +39,12 @@ services:
       - SQLITE_DB_PATH=data/enterprise.db
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - API_KEY=${API_KEY:-enterprise-agent-secure-prod-token-9941}
+      - QDRANT_URL=http://qdrant:6333
     volumes:
       - sqlite_data:/app/data
+    depends_on:
+      qdrant:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
       interval: 10s

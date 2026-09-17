@@ -205,7 +205,7 @@ class EnterpriseMCPClient:
 
     async def _ensure_connected(self) -> None:
         """Guarantees connection is active before tool interaction."""
-        if not self.is_connected:
+        if not self.is_connected or self._session is None:
             await self.connect()
 
     # --------------------------------------------------------------------------
@@ -285,35 +285,45 @@ class EnterpriseMCPClient:
 
         try:
             call_result = await self._session.call_tool(name=tool_name, arguments=args)
-            
-            # Extract content from response
-            raw_text = ""
-            if call_result.content:
-                text_parts = [
-                    part.text for part in call_result.content if hasattr(part, "text") and part.text
-                ]
-                raw_text = "\n".join(text_parts).strip()
-
-            # Attempt JSON parsing of structured response
-            if raw_text:
-                try:
-                    parsed_payload = json.loads(raw_text)
-                    if isinstance(parsed_payload, dict):
-                        return parsed_payload
-                    return {"result": parsed_payload, "success": not call_result.is_error}
-                except json.JSONDecodeError:
-                    pass
-
-            # Fallback for plain text response
-            return {
-                "success": not call_result.is_error,
-                "result": raw_text,
-                "is_error": call_result.is_error,
-            }
-
         except Exception as exc:
-            logger.error("Error executing MCP tool '%s': %s", tool_name, exc)
-            raise MCPToolExecutionError(f"Execution of tool '{tool_name}' failed: {str(exc)}") from exc
+            err_str = str(exc).lower()
+            if "closed" in err_str or "connection" in err_str or "broken" in err_str:
+                logger.warning("MCP session dropped during '%s' (%s). Attempting reconnection...", tool_name, exc)
+                try:
+                    await self.disconnect()
+                    await self.connect()
+                    call_result = await self._session.call_tool(name=tool_name, arguments=args)
+                except Exception as retry_exc:
+                    logger.error("MCP tool '%s' retry failed after reconnect: %s", tool_name, retry_exc)
+                    raise MCPToolExecutionError(f"Execution of tool '{tool_name}' failed: {str(retry_exc)}") from retry_exc
+            else:
+                logger.error("Error executing MCP tool '%s': %s", tool_name, exc)
+                raise MCPToolExecutionError(f"Execution of tool '{tool_name}' failed: {str(exc)}") from exc
+
+        # Extract content from response
+        raw_text = ""
+        if call_result.content:
+            text_parts = [
+                part.text for part in call_result.content if hasattr(part, "text") and part.text
+            ]
+            raw_text = "\n".join(text_parts).strip()
+
+        # Attempt JSON parsing of structured response
+        if raw_text:
+            try:
+                parsed_payload = json.loads(raw_text)
+                if isinstance(parsed_payload, dict):
+                    return parsed_payload
+                return {"result": parsed_payload, "success": not call_result.is_error}
+            except json.JSONDecodeError:
+                pass
+
+        # Fallback for plain text response
+        return {
+            "success": not call_result.is_error,
+            "result": raw_text,
+            "is_error": call_result.is_error,
+        }
 
     # --------------------------------------------------------------------------
     # High-Level Service Abstractions for Agent Workflows

@@ -247,22 +247,38 @@ class LLMService:
 
         if not explanation_text:
             # Deterministic fallback
-            r = tool_result.result
-            if tool_result.tool_name == "create_support_ticket" and isinstance(r, dict):
+            r = tool_result.result if isinstance(tool_result.result, dict) else {}
+            if tool_result.tool_name == "create_support_ticket":
+                tck = r.get("ticket", {}) if isinstance(r.get("ticket"), dict) else r
+                ticket_id = tck.get("ticket_id") or r.get("ticket_id", "TCK-UNKNOWN")
+                priority = tck.get("priority") or r.get("priority", "MEDIUM")
+                category = tck.get("category") or r.get("category", "IT")
                 explanation_text = (
-                    f"Your support ticket **{r.get('ticket_id', 'TCK-UNKNOWN')}** has been successfully created "
-                    f"with priority **{r.get('priority', 'MEDIUM')}** under the **{r.get('category', 'IT')}** category. "
+                    f"Your support ticket **{ticket_id}** has been successfully created "
+                    f"with priority **{priority}** under the **{category}** category. "
                     f"Our support engineering team will review it shortly."
                 )
-            elif tool_result.tool_name == "get_ticket_status" and isinstance(r, dict):
+            elif tool_result.tool_name == "get_ticket_status":
+                tck = r.get("ticket", {}) if isinstance(r.get("ticket"), dict) else r
+                ticket_id = tck.get("ticket_id") or r.get("ticket_id", "Unknown")
+                status = tck.get("status") or r.get("status", "Unknown")
+                priority = tck.get("priority") or r.get("priority", "Normal")
+                category = tck.get("category") or r.get("category", "General")
+                title = tck.get("title") or r.get("title", "")
                 explanation_text = (
-                    f"Support ticket **{r.get('ticket_id')}** is currently **{r.get('status')}** "
-                    f"(Priority: {r.get('priority')}, Category: {r.get('category')}). Title: \"{r.get('title')}\"."
+                    f"Support ticket **{ticket_id}** is currently **{status}** "
+                    f"(Priority: {priority}, Category: {category}). Title: \"{title}\"."
                 )
-            elif tool_result.tool_name == "get_employee_info" and isinstance(r, dict):
+            elif tool_result.tool_name == "get_employee_info":
+                emp = r.get("employee", {}) if isinstance(r.get("employee"), dict) else r
+                name = emp.get("name") or r.get("name", "Unknown")
+                emp_id = emp.get("employee_id") or r.get("employee_id", "Unknown")
+                dept = emp.get("department") or r.get("department", "General")
+                role = emp.get("role") or r.get("role", "Staff")
+                email = emp.get("email") or r.get("email", "unknown@enterprise.internal")
                 explanation_text = (
-                    f"Employee record found for **{r.get('name')}** (ID: {r.get('employee_id')}, "
-                    f"Department: {r.get('department')}, Role: {r.get('role')}, Email: {r.get('email')})."
+                    f"Employee record found for **{name}** (ID: {emp_id}, "
+                    f"Department: {dept}, Role: {role}, Email: {email})."
                 )
             else:
                 explanation_text = f"Action `{tool_result.tool_name}` was successfully executed: {tool_result.result}"

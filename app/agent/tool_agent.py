@@ -110,8 +110,11 @@ class MCPToolAgent:
         start_time = time.perf_counter()
 
         # Connect MCP client if not connected
-        if not self.mcp_client.is_connected:
-            await self.mcp_client.connect()
+        try:
+            if not self.mcp_client.is_connected:
+                await self.mcp_client.connect()
+        except Exception as exc:
+            logger.warning("[MCPToolAgent] Failed to connect MCP client: %s", exc)
 
         # 1. Action: Get Ticket Status
         if explicit_tool == "get_ticket_status" or "status" in q_lower or "ticket" in q_lower and ("check" in q_lower or "track" in q_lower):
@@ -137,7 +140,11 @@ class MCPToolAgent:
                     tool_execution=tool_res,
                 )
 
-            res = await self.mcp_client.get_ticket_status(ticket_id=ticket_id)
+            try:
+                res = await self.mcp_client.get_ticket_status(ticket_id=ticket_id)
+            except Exception as exc:
+                logger.error("[MCPToolAgent] Error executing get_ticket_status: %s", exc)
+                res = {"success": False, "error": f"Failed to retrieve ticket status: {str(exc)}"}
             exec_time = round((time.perf_counter() - start_time) * 1000, 2)
             tool_res = ToolExecutionResult(
                 tool_name="get_ticket_status",
@@ -190,13 +197,17 @@ class MCPToolAgent:
                 clean_q = re.sub(r"^(please\s+)?(create|open|file|submit)\s+(a\s+)?(support\s+)?ticket\s+(about|for|because)?\s*", "", query, flags=re.IGNORECASE).strip()
                 title = clean_q[:60].capitalize() if clean_q else "General Support Request"
 
-            res = await self.mcp_client.create_support_ticket(
-                employee_id=emp_id,
-                title=title,
-                description=desc,
-                category=category,
-                priority=priority,
-            )
+            try:
+                res = await self.mcp_client.create_support_ticket(
+                    employee_id=emp_id,
+                    title=title,
+                    description=desc,
+                    category=category,
+                    priority=priority,
+                )
+            except Exception as exc:
+                logger.error("[MCPToolAgent] Error executing create_support_ticket: %s", exc)
+                res = {"success": False, "error": f"Failed to create support ticket: {str(exc)}"}
             exec_time = round((time.perf_counter() - start_time) * 1000, 2)
             tool_res = ToolExecutionResult(
                 tool_name="create_support_ticket",
@@ -229,7 +240,11 @@ class MCPToolAgent:
         # 3. Action: Get Employee Info
         if explicit_tool == "get_employee_info" or "employee" in q_lower or "directory" in q_lower:
             emp_id = self.extract_employee_id(query)
-            res = await self.mcp_client.get_employee_info(employee_id=emp_id)
+            try:
+                res = await self.mcp_client.get_employee_info(employee_id=emp_id)
+            except Exception as exc:
+                logger.error("[MCPToolAgent] Error executing get_employee_info: %s", exc)
+                res = {"success": False, "error": f"Failed to retrieve employee info: {str(exc)}"}
             exec_time = round((time.perf_counter() - start_time) * 1000, 2)
             tool_res = ToolExecutionResult(
                 tool_name="get_employee_info",

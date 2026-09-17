@@ -260,7 +260,17 @@ class RootAgent:
         # Case 2: Pure Action (MCP Tool Agent)
         # ----------------------------------------------------------------------
         if workflow == WorkflowType.TOOL_ONLY:
-            tool_res = await self.tool_agent.run(query=query)
+            try:
+                tool_res = await self.tool_agent.run(query=query)
+            except Exception as exc:
+                logger.error("[RootAgent] Failed to run ToolAgent in tool-only workflow: %s", exc)
+                tool_res = ToolAgentResult(
+                    tool_name="unknown",
+                    parameters={"query": query},
+                    result_payload={"success": False, "error": str(exc)},
+                    success=False,
+                    human_readable_summary=f"Unable to execute requested tool action: {str(exc)}",
+                )
             audit_log["tool_usage"] = {
                 "tool_name": tool_res.tool_name,
                 "parameters": tool_res.parameters,
@@ -298,7 +308,17 @@ class RootAgent:
         }
 
         # Step B: Execute Tool action based on user intent
-        tool_res = await self.tool_agent.run(query=query)
+        try:
+            tool_res = await self.tool_agent.run(query=query)
+        except Exception as exc:
+            logger.error("[RootAgent] Failed to run ToolAgent in hybrid workflow: %s", exc)
+            tool_res = ToolAgentResult(
+                tool_name="unknown",
+                parameters={"query": query},
+                result_payload={"success": False, "error": str(exc)},
+                success=False,
+                human_readable_summary=f"Unable to execute support tool action: {str(exc)}",
+            )
         audit_log["tool_usage"] = {
             "tool_name": tool_res.tool_name,
             "parameters": tool_res.parameters,
