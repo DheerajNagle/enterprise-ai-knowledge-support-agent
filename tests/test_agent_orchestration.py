@@ -89,6 +89,34 @@ def test_routing_safety_refusal(static_root_agent: RootAgent):
     assert static_root_agent.determine_workflow(query) == WorkflowType.SAFETY_REFUSAL
 
 
+def test_routing_vpn_device_health_checks(static_root_agent: RootAgent):
+    """Verifies VPN policy inquiry with device health checks routes to RAG_ONLY instead of MCP."""
+    query = "What does the VPN policy say about device health checks?"
+    assert static_root_agent.determine_workflow(query) == WorkflowType.RAG_ONLY
+
+
+@pytest.mark.parametrize(
+    "query,expected_workflow",
+    [
+        ("What does the policy say about background checks?", WorkflowType.RAG_ONLY),
+        ("Check if the policy permits travel allowance", WorkflowType.RAG_ONLY),
+        ("What is the procedure to open a ticket?", WorkflowType.RAG_ONLY),
+        ("Can I check my ticket status online?", WorkflowType.RAG_ONLY),
+        ("What is the hardware refresh lifecycle for corporate laptops?", WorkflowType.RAG_ONLY),
+        ("Look up employee directory information for employee ID EMP-1001.", WorkflowType.TOOL_ONLY),
+        ("Who is EMP-1001?", WorkflowType.TOOL_ONLY),
+        ("Check the profile for employee with email sarah.jenkins@enterprise.internal.", WorkflowType.TOOL_ONLY),
+        ("Create an IT support ticket for employee EMP-1001 with title 'Replacement power cable'", WorkflowType.TOOL_ONLY),
+        ("What is the laptop replacement policy, and please file a hardware ticket for EMP-1001 stating my laptop is 36 months old.", WorkflowType.HYBRID_RAG_TOOL),
+        ("What is our home office internet stipend, and can you check if ticket TCK-2024-0101 is related to my connectivity allowance?", WorkflowType.HYBRID_RAG_TOOL),
+        ("What are the rules for sick leave medical notes, and look up employee EMP-1001 department to see who the HR contact is.", WorkflowType.HYBRID_RAG_TOOL),
+    ],
+)
+def test_routing_comprehensive_matrix(static_root_agent: RootAgent, query: str, expected_workflow: WorkflowType):
+    """Validates multi-signal routing across diverse knowledge, tool, and hybrid enterprise queries."""
+    assert static_root_agent.determine_workflow(query) == expected_workflow
+
+
 # ------------------------------------------------------------------------------
 # 3. End-to-End Workflow Execution Tests
 # ------------------------------------------------------------------------------
@@ -115,6 +143,22 @@ async def test_end_to_end_rag_workflow(live_root_agent: RootAgent):
 
 
 @pytest.mark.asyncio
+async def test_end_to_end_vpn_device_health_checks_rag(live_root_agent: RootAgent):
+    """Verifies that 'What does the VPN policy say about device health checks?' executes RAG and returns vpn_policy.md citations."""
+    query = "What does the VPN policy say about device health checks?"
+    response = await live_root_agent.run(query=query)
+
+    assert isinstance(response, AgentResponse)
+    assert response.workflow == WorkflowType.RAG_ONLY
+    assert response.rag_result is not None
+    assert response.rag_result.is_grounded
+    assert len(response.rag_result.sources) > 0
+    assert any("vpn_policy.md" in s.filename for s in response.rag_result.sources)
+    assert "[Source:" in response.response_text or "vpn_policy.md" in response.response_text.lower()
+
+
+
+@pytest.mark.asyncio
 async def test_end_to_end_tool_workflow(live_root_agent: RootAgent):
     """Verifies execution of TOOL_ONLY workflow creating ticket in SQLite."""
     query = "Create a ticket because my laptop keyboard has sticky keys"
@@ -135,8 +179,8 @@ async def test_end_to_end_tool_workflow(live_root_agent: RootAgent):
 
 @pytest.mark.asyncio
 async def test_end_to_end_hybrid_workflow(live_root_agent: RootAgent):
-    """Verifies execution of HYBRID_RAG_TOOL workflow combining policy evaluation and ticket creation."""
-    query = "What does the VPN policy say and create a ticket if my issue qualifies?"
+    """Verifies execution of HYBRID_RAG_TOOL workflow combining policy evaluation and ticket creation when issue details are provided."""
+    query = "What is the laptop replacement policy, and please file a hardware ticket for EMP-1001 stating my laptop is 36 months old."
     response = await live_root_agent.run(query=query)
 
     assert isinstance(response, AgentResponse)
@@ -153,6 +197,61 @@ async def test_end_to_end_hybrid_workflow(live_root_agent: RootAgent):
     assert audit["retrieval"] is not None
     assert audit["tool_usage"] is not None
     assert audit["tool_usage"]["tool_name"] == "create_support_ticket"
+
+
+@pytest.mark.asyncio
+async def test_end_to_end_hybrid_conditional_unspecified_issue_does_not_create_ticket(live_root_agent: RootAgent):
+    """
+    Verifies that 'What does the VPN policy say and create a ticket if my issue qualifies?'
+    1. Retrieves vpn_policy.md as the primary source (NOT laptop_policy.md).
+    2. Does NOT create a ticket because no concrete issue description was provided.
+    3. Explains to the user what information is required to qualify and open a ticket.
+    """
+    query = "What does the VPN policy say and create a ticket if my issue qualifies?"
+    response = await live_root_agent.run(query=query)
+
+    assert isinstance(response, AgentResponse)
+    assert response.workflow == WorkflowType.HYBRID_RAG_TOOL
+    assert response.rag_result is not None
+    assert len(response.rag_result.sources) > 0
+
+    # 1. vpn_policy.md MUST be the primary (#1 ranked) source
+    primary_source = response.rag_result.sources[0]
+    assert primary_source.filename == "vpn_policy.md"
+    assert "3.2" in primary_source.section or "Host Posture" in primary_source.section or "VPN" in primary_source.section
+
+    # 2. Ticket MUST NOT be created when issue details are missing
+    assert response.tool_result is not None
+    assert response.tool_result.success is False
+    assert "TCK-" not in response.response_text
+    assert "### Action Required to Qualify" in response.response_text
+    assert "conditional" in response.response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_laptop_loss_theft_retrieves_laptop_policy_primary(live_root_agent: RootAgent):
+    """Verifies that laptop loss/theft inquiry retrieves laptop_policy.md as the primary source."""
+    query = "What is the procedure if my corporate laptop is lost or stolen?"
+    response = await live_root_agent.run(query=query)
+
+    assert isinstance(response, AgentResponse)
+    assert response.rag_result is not None
+    assert len(response.rag_result.sources) > 0
+    assert response.rag_result.sources[0].filename == "laptop_policy.md"
+    assert "5." in response.rag_result.sources[0].section or "Loss" in response.rag_result.sources[0].section
+
+
+@pytest.mark.asyncio
+async def test_unrelated_documents_do_not_dominate_vpn_query(live_root_agent: RootAgent):
+    """Verifies that for VPN policy queries, unrelated docs like laptop_policy or onboarding do not outrank vpn_policy.md."""
+    query = "What does the VPN policy say about device health checks?"
+    response = await live_root_agent.run(query=query)
+
+    assert response.rag_result is not None
+    assert response.rag_result.sources[0].filename == "vpn_policy.md"
+    # Ensure laptop_policy is not the primary document
+    assert response.rag_result.sources[0].filename != "laptop_policy.md"
+
 
 
 @pytest.mark.asyncio

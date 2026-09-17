@@ -116,8 +116,24 @@ class MCPToolAgent:
         except Exception as exc:
             logger.warning("[MCPToolAgent] Failed to connect MCP client: %s", exc)
 
+        # Infer intent with priority disambiguation
+        has_ticket_id = bool(self.extract_ticket_id(query))
+        is_create_ticket = (
+            explicit_tool == "create_support_ticket"
+            or bool(re.search(r"\b(?:create|open|file|submit|raise|log)\s+(?:an?\s+)?(?:[a-z0-9_-]+\s+){0,3}(?:ticket|support\s+request)\b", query, re.IGNORECASE))
+            or (any(w in q_lower for w in ["broken", "sticky keys", "charger stopped", "not working"]) and not has_ticket_id)
+        )
+        is_get_status = (
+            explicit_tool == "get_ticket_status"
+            or (has_ticket_id and not is_create_ticket)
+            or bool(re.search(r"\b(?:check|get|track|view|show|find)\s+(?:the\s+)?status\s+of\b", query, re.IGNORECASE))
+            or bool(re.search(r"\bticket\s+status\b", query, re.IGNORECASE))
+            or bool(re.search(r"\bstatus\s+of\s+(?:the\s+|my\s+)?(?:support\s+)?ticket\b", query, re.IGNORECASE))
+            or (("status" in q_lower or "track" in q_lower) and "ticket" in q_lower and not is_create_ticket)
+        )
+
         # 1. Action: Get Ticket Status
-        if explicit_tool == "get_ticket_status" or "status" in q_lower or "ticket" in q_lower and ("check" in q_lower or "track" in q_lower):
+        if is_get_status and not is_create_ticket:
             ticket_id = (
                 explicit_params.get("ticket_id") if explicit_params
                 else self.extract_ticket_id(query)
@@ -169,7 +185,7 @@ class MCPToolAgent:
             )
 
         # 2. Action: Create Support Ticket
-        if explicit_tool == "create_support_ticket" or any(w in q_lower for w in ["create", "open", "file", "submit", "broken", "issue"]):
+        if is_create_ticket or explicit_tool == "create_support_ticket" or any(w in q_lower for w in ["create", "open", "file", "submit", "broken", "issue"]):
             params = explicit_params or {}
             emp_id = params.get("employee_id") or self.extract_employee_id(query) or "EMP-1001"
             title = params.get("title")

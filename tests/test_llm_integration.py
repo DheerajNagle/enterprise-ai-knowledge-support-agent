@@ -295,7 +295,7 @@ async def test_three_tier_response_hybrid(test_root_agent):
     2. tool_results (ticket creation)
     3. llm_explanation (synthesized policy + action reasoning)
     """
-    query = "What does the VPN policy say and create a ticket if my issue qualifies?"
+    query = "What does the VPN policy say and create a ticket for EMP-1001 reporting my device health check failed: CrowdStrike Falcon sensor is inactive."
     response = await test_root_agent.run(query=query)
 
     assert isinstance(response, AgentResponse)

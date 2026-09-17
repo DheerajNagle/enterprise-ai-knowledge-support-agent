@@ -70,6 +70,15 @@ INJECTION_PATTERNS = [
     re.compile(r"bypass\s+(safety|security)\s+filters", re.IGNORECASE),
 ]
 
+DEPARTMENT_FILENAME_MAP = {
+    "Network/IT": ["vpn_policy.md"],
+    "Hardware": ["laptop_policy.md"],
+    "HR/People Operations": ["leave_policy.md", "employee_onboarding.md"],
+    "Finance": ["expense_policy.md"],
+    "Security/IAM": ["security_policy.md", "password_policy.md"],
+    "Onboarding": ["employee_onboarding.md"],
+}
+
 
 def estimate_tokens(text: str) -> int:
     """Estimates token count for budgeting (~4 characters per token heuristic)."""
@@ -307,9 +316,20 @@ class ContextEngine:
             density_bonus = keyword_coverage * 0.15
 
             # Bonus 3: Department match
-            dept_bonus = 0.05 if (query_analysis.detected_department and query_analysis.detected_department.lower() in ch.filename.lower()) else 0.0
+            dept_bonus = 0.0
+            if query_analysis.detected_department:
+                matched_files = DEPARTMENT_FILENAME_MAP.get(query_analysis.detected_department, [])
+                if any(f in ch.filename.lower() for f in matched_files):
+                    dept_bonus = 0.10
+                elif query_analysis.detected_department.lower() in ch.filename.lower():
+                    dept_bonus = 0.05
 
-            final_priority = round(ch.score + section_bonus + density_bonus + dept_bonus, 4)
+            # Bonus 4: Document Topic Stem match (e.g. "vpn" in query_kw_set and "vpn" in filename)
+            doc_stem = re.sub(r"\.md$", "", ch.filename.lower())
+            stem_words = set(doc_stem.split("_")) - {"policy"}
+            stem_bonus = 0.15 if (query_kw_set and query_kw_set.intersection(stem_words)) else 0.0
+
+            final_priority = round(ch.score + section_bonus + density_bonus + dept_bonus + stem_bonus, 4)
             est_tokens = estimate_tokens(sanitized_text)
 
             prioritized.append(

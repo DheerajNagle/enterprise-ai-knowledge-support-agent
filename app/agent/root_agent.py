@@ -21,7 +21,8 @@ Produces a 3-tier response contract clearly distinguishing:
 
 import enum
 import logging
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field
 from google.adk import Agent
 from app.config import get_settings
@@ -46,6 +47,48 @@ class WorkflowType(str, enum.Enum):
     TOOL_ONLY = "TOOL_ONLY"
     HYBRID_RAG_TOOL = "HYBRID_RAG_TOOL"
     SAFETY_REFUSAL = "SAFETY_REFUSAL"
+
+
+# ------------------------------------------------------------------------------
+# Targeted Regex Patterns for Dynamic Intent Classification
+# ------------------------------------------------------------------------------
+
+TICKET_ID_PATTERN = re.compile(r"\bTCK-\d{4}-[A-Za-z0-9]+\b", re.IGNORECASE)
+EMPLOYEE_ID_PATTERN = re.compile(r"\bEMP-[A-Za-z0-9]+\b", re.IGNORECASE)
+
+TICKET_CREATE_PATTERNS = [
+    re.compile(r"\b(create|open|file|submit|raise|log)\s+(an?\s+)?([a-z0-9_-]+\s+){0,3}(ticket|support\s+request)\b", re.IGNORECASE),
+    re.compile(r"\b(report|file)\s+(an?\s+)?(issue|problem|incident|bug)\b", re.IGNORECASE),
+    re.compile(r"\b(laptop|screen|keyboard|charger|monitor|hardware|vpn|wifi|connection)\s+(is\s+)?(broken|not working|down|failing|damaged)\b", re.IGNORECASE),
+    re.compile(r"\b(fails?|unable)\s+to\s+connect\b", re.IGNORECASE),
+]
+
+TICKET_STATUS_PATTERNS = [
+    re.compile(r"\b(check|get|track|view|show|find)\s+(the\s+)?status\s+of\b", re.IGNORECASE),
+    re.compile(r"\bticket\s+status\b", re.IGNORECASE),
+    re.compile(r"\bstatus\s+of\s+(the\s+|my\s+)?(support\s+)?ticket\b", re.IGNORECASE),
+    re.compile(r"\bstatus\s+and\s+priority\b", re.IGNORECASE),
+    re.compile(r"\b(check|track)\s+(the\s+|my\s+)?(support\s+)?ticket\b", re.IGNORECASE),
+]
+
+EMPLOYEE_LOOKUP_PATTERNS = [
+    re.compile(r"\b(find|lookup|look\s+up|search|get|show)\s+(the\s+)?(directory\s+information|profile|info|details)?\s*(for|of)?\s*(employee|staff)\b", re.IGNORECASE),
+    re.compile(r"\b(check|view|show|get)\s+the\s+profile\s+for\s+(employee|staff|user)\b", re.IGNORECASE),
+    re.compile(r"\bwho\s+is\s+(employee\s+)?(EMP-[A-Za-z0-9]+|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b", re.IGNORECASE),
+    re.compile(r"\b(look\s*up|find|search)\s+EMP-[A-Za-z0-9]+\b", re.IGNORECASE),
+    re.compile(r"\bemployee\s+(directory|profile|lookup)\b", re.IGNORECASE),
+]
+
+HYBRID_PATTERNS = [
+    re.compile(r"\b(and|then|also)\s+(please\s+)?(create|file|open|submit|raise|log|check|look\s*up|find)\b", re.IGNORECASE),
+    re.compile(r"\bif\s+(my\s+issue\s+qualifies|eligible|i\s+qualify|needed|appropriate)\b", re.IGNORECASE),
+]
+
+KNOWLEDGE_INQUIRY_PATTERNS = [
+    re.compile(r"\b(what\s+is|what\s+are|what\s+does|how\s+do\s+i|how\s+to|how\s+can|how\s+does|when\s+is|where\s+can|is\s+there|can\s+i|explain|describe|tell\s+me\s+about)\b", re.IGNORECASE),
+    re.compile(r"\b(policy|policies|guidelines?|rules?|allowance|procedure|standards?|handbook|sla|eligibility|entitled|requirements?)\b", re.IGNORECASE),
+    re.compile(r"\b(pto|vacation|leave|per\s+diem|stipend|reimbursement|core\s+hours|refresh\s+cycle|device\s+health)\b", re.IGNORECASE),
+]
 
 
 class AgentResponse(BaseModel):
@@ -143,44 +186,113 @@ class RootAgent:
 
         q_lower = query.lower()
 
-        # Action signals
-        action_keywords = [
-            "create", "open", "file", "submit", "raise", "ticket",
-            "status", "check", "lookup", "find employee", "who is",
-            "report issue", "broken", "not working", "fails to connect",
-        ]
-        has_action_indicator = any(kw in q_lower for kw in action_keywords)
+        # Tool Action checks (grounded in system capabilities: ticket creation, ticket status, employee lookup)
+        has_ticket_create = any(p.search(query) for p in TICKET_CREATE_PATTERNS)
+        has_ticket_status = any(p.search(query) for p in TICKET_STATUS_PATTERNS) or bool(TICKET_ID_PATTERN.search(query))
+        has_emp_lookup = any(p.search(query) for p in EMPLOYEE_LOOKUP_PATTERNS)
+        has_action_indicator = has_ticket_create or has_ticket_status or has_emp_lookup
 
-        # Policy / Knowledge signals
-        knowledge_keywords = [
-            "policy", "rules", "guidelines", "allowance", "procedure",
-            "how to", "what is", "how do i", "qualify", "eligibility",
-            "entitled", "days", "pto", "vpn", "expense", "remote work",
-            "password", "laptop", "security",
-        ]
-        has_knowledge_indicator = any(kw in q_lower for kw in knowledge_keywords)
+        # Policy / Knowledge Inquiry checks
+        has_knowledge_indicator = (
+            any(p.search(query) for p in KNOWLEDGE_INQUIRY_PATTERNS)
+            or analysis.intent == "KNOWLEDGE_INQUIRY"
+        )
 
-        # 1. Composite / Hybrid Workflow
-        conditional_conjunctions = [
-            "and create", "and open", "and file", "if my issue",
-            "if eligible", "if i qualify", "then create", "then open",
-        ]
-        has_conditional_intent = any(conj in q_lower for conj in conditional_conjunctions)
+        # 1. Composite / Hybrid Workflow Check
+        has_conditional_intent = any(p.search(query) for p in HYBRID_PATTERNS)
+        has_hybrid_conjunction = (
+            has_conditional_intent
+            or (
+                ("and" in q_lower or "then" in q_lower or "if" in q_lower)
+                and ("ticket" in q_lower or "emp-" in q_lower or "employee" in q_lower)
+            )
+        )
 
-        if (has_knowledge_indicator and has_action_indicator) or has_conditional_intent or analysis.intent == "HYBRID":
-            if "and" in q_lower or "if" in q_lower or has_conditional_intent:
+        if (has_knowledge_indicator and has_action_indicator) or analysis.intent == "HYBRID":
+            if has_hybrid_conjunction:
                 return WorkflowType.HYBRID_RAG_TOOL
-
-        # 2. Specific Ticket Status Action
-        if "TCK-" in query.upper() or ("ticket" in q_lower and "status" in q_lower):
+            # If phrased as a knowledge/policy inquiry without actionable entity IDs, route to RAG
+            if q_lower.strip().startswith((
+                "what is", "what are", "what does", "how to", "how do i",
+                "how can", "can i", "where can", "is it possible",
+            )):
+                if not TICKET_ID_PATTERN.search(query) and not EMPLOYEE_ID_PATTERN.search(query):
+                    return WorkflowType.RAG_ONLY
             return WorkflowType.TOOL_ONLY
 
-        # 3. Pure Action Request
+        # 2. Pure Action Request
         if has_action_indicator or analysis.intent == "ACTION_REQUEST":
             return WorkflowType.TOOL_ONLY
 
-        # 4. Pure Knowledge Inquiry
+        # 3. Pure Knowledge Inquiry (or general fallback)
         return WorkflowType.RAG_ONLY
+
+    @staticmethod
+    def extract_knowledge_subquery(query: str) -> str:
+        """
+        Extracts the primary knowledge inquiry from a composite hybrid request
+        by stripping operational action clauses, while preserving core domain terms.
+        """
+        parts = re.split(
+            r",?\s+(?:and|then)\s+(?:can\s+you\s+|could\s+you\s+|please\s+)?(?:create|open|file|submit|raise|log|check|look\s*up|find|search)\b",
+            query,
+            flags=re.IGNORECASE,
+        )
+        if len(parts) >= 2:
+            candidate = parts[0].strip()
+            # Verify candidate contains inquiry or policy keywords
+            if any(
+                w in candidate.lower()
+                for w in [
+                    "what", "how", "policy", "rules", "allowance", "stipend",
+                    "guidelines", "procedure", "vpn", "laptop", "leave",
+                    "expense", "password", "security", "refresh", "core hours",
+                ]
+            ):
+                return candidate
+        return query
+
+    @staticmethod
+    def check_conditional_qualification(query: str) -> Tuple[bool, bool]:
+        """
+        Evaluates whether a hybrid request is conditional on qualification
+        and whether sufficient concrete issue details were provided to evaluate qualification.
+
+        Returns (is_conditional, has_concrete_details).
+        """
+        CONDITIONAL_PATTERNS = [
+            re.compile(r"\bif\s+(?:my\s+)?(?:issue\s+)?qualif(?:ies|y|ication)\b", re.IGNORECASE),
+            re.compile(r"\bif\s+(?:i\s+)?eligible\b", re.IGNORECASE),
+            re.compile(r"\bif\s+(?:i\s+)?qualify\b", re.IGNORECASE),
+            re.compile(r"\bif\s+applicable\b", re.IGNORECASE),
+            re.compile(r"\bif\s+appropriate\b", re.IGNORECASE),
+            re.compile(r"\bif\s+needed\b", re.IGNORECASE),
+        ]
+        is_conditional = any(p.search(query) for p in CONDITIONAL_PATTERNS)
+        if not is_conditional:
+            return False, True
+
+        # Check for concrete issue details beyond the conditional phrase
+        cleaned = query
+        for p in CONDITIONAL_PATTERNS:
+            cleaned = p.sub("", cleaned)
+        cleaned = re.sub(
+            r"^(?:what\s+(?:does|is|are)|how\s+to|can\s+i|explain).*?(?:and|then)\s+(?:please\s+)?(?:create|open|file|submit|raise)\s+(?:a\s+)?(?:support\s+)?ticket\s*",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        ).strip(" ?:.,;")
+
+        ISSUE_DETAIL_PATTERNS = [
+            re.compile(r"\bEMP-[A-Za-z0-9]+\b", re.IGNORECASE),
+            re.compile(r"\bTCK-\d{4}-[A-Za-z0-9]+\b", re.IGNORECASE),
+            re.compile(
+                r"\b(?:because|due\s+to|stating|reporting|failing|fails?|sensor|crowdstrike|bitlocker|filevault|firewall|screen|keyboard|charger|broken|damaged|lost|stolen|inactive|offline|months?\s+old)\b",
+                re.IGNORECASE,
+            ),
+        ]
+        has_details = any(p.search(cleaned) for p in ISSUE_DETAIL_PATTERNS) or len(cleaned.split()) >= 4
+        return is_conditional, has_details
 
     # --------------------------------------------------------------------------
     # Orchestration Execution
@@ -295,9 +407,10 @@ class RootAgent:
         # ----------------------------------------------------------------------
         # Case 3: Composite Hybrid Workflow (RAG + MCP Tool)
         # ----------------------------------------------------------------------
-        # Step A: Execute RAG retrieval to evaluate policy
+        # Step A: Execute RAG retrieval on focused knowledge subquery
+        knowledge_query = self.extract_knowledge_subquery(query)
         rag_res = await self.rag_agent.run(
-            query=query,
+            query=knowledge_query,
             conversation_history=conversation_history,
             top_k=top_k,
         )
@@ -307,18 +420,58 @@ class RootAgent:
             "confidence_score": rag_res.confidence_score,
         }
 
-        # Step B: Execute Tool action based on user intent
-        try:
-            tool_res = await self.tool_agent.run(query=query)
-        except Exception as exc:
-            logger.error("[RootAgent] Failed to run ToolAgent in hybrid workflow: %s", exc)
+        # Step B: Evaluate conditional qualification & execute tool action
+        is_conditional, has_concrete_details = self.check_conditional_qualification(query)
+
+        if is_conditional and not has_concrete_details:
+            logger.info("[RootAgent] Hybrid request is conditional on qualification but lacks concrete issue details.")
             tool_res = ToolAgentResult(
-                tool_name="unknown",
-                parameters={"query": query},
-                result_payload={"success": False, "error": str(exc)},
+                tool_name="create_support_ticket",
+                parameters={"query": query, "qualification_status": "missing_issue_details"},
+                result_payload={
+                    "success": False,
+                    "ticket_created": False,
+                    "reason": "Request is conditional ('if my issue qualifies') but does not specify the issue details or device status.",
+                    "required_information": [
+                        "A description of the specific issue or error encountered (e.g. failing posture assessment, CrowdStrike sensor offline).",
+                        "Employee ID (e.g. EMP-1001).",
+                        "Device operating system and compliance status.",
+                    ],
+                },
                 success=False,
-                human_readable_summary=f"Unable to execute support tool action: {str(exc)}",
+                human_readable_summary=(
+                    "No support ticket was created because your request is conditional ('if my issue qualifies'), "
+                    "but no specific issue details were provided to evaluate against the policy. "
+                    "To determine qualification and open a support ticket, please provide:\n"
+                    "1. A description of the specific issue or error (e.g., failing host posture assessment, sensor inactive).\n"
+                    "2. Your employee ID (e.g., EMP-1001).\n"
+                    "3. Your device operating system and current status."
+                ),
+                tool_execution=ToolExecutionResult(
+                    tool_name="create_support_ticket",
+                    parameters={"query": query},
+                    result={
+                        "success": False,
+                        "ticket_created": False,
+                        "reason": "Missing concrete issue description to determine policy qualification.",
+                    },
+                    success=False,
+                    execution_time_ms=0.0,
+                ),
             )
+        else:
+            try:
+                tool_res = await self.tool_agent.run(query=query)
+            except Exception as exc:
+                logger.error("[RootAgent] Failed to run ToolAgent in hybrid workflow: %s", exc)
+                tool_res = ToolAgentResult(
+                    tool_name="unknown",
+                    parameters={"query": query},
+                    result_payload={"success": False, "error": str(exc)},
+                    success=False,
+                    human_readable_summary=f"Unable to execute support tool action: {str(exc)}",
+                )
+
         audit_log["tool_usage"] = {
             "tool_name": tool_res.tool_name,
             "parameters": tool_res.parameters,
@@ -327,10 +480,11 @@ class RootAgent:
         }
 
         # Step C: Synthesize combined grounded response
+        action_header = "### Action Taken" if tool_res.success else "### Action Required to Qualify"
         combined_parts = [
             "### Policy Evaluation",
             rag_res.answer,
-            "\n### Action Taken",
+            f"\n{action_header}",
             tool_res.human_readable_summary,
         ]
         final_text = "\n\n".join(combined_parts)
